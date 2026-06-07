@@ -112,6 +112,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 使用简单弹窗显示诊断或状态说明。
     private func showMessage(title: String, message: String) {
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.presentMessage(title: title, message: message)
+            }
+        }
+    }
+
+    // 真正弹出消息框；调用方应先把展示动作延后到默认 RunLoop mode。
+    private func presentMessage(title: String, message: String) {
         let alert = NSAlert()
         alert.alertStyle = .informational
         alert.messageText = title
@@ -122,6 +131,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 权限不足时弹出说明，并提供打开系统设置或退出的选择。
     private func showAccessibilityPermissionGuide() {
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            Task { @MainActor [weak self] in
+                self?.presentAccessibilityPermissionGuide()
+            }
+        }
+    }
+
+    // 真正弹出权限说明；启动或菜单 action 中都不要直接同步调用它。
+    private func presentAccessibilityPermissionGuide() {
         permissionGuide.show(
             openSettingsHandler: { [weak self] in
                 self?.openAccessibilitySettings()

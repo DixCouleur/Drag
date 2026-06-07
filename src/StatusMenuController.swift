@@ -8,10 +8,10 @@ import AppKit
 // 管理菜单栏图标和下拉菜单。业务动作通过闭包交给 AppDelegate。
 @MainActor
 final class StatusMenuController: NSObject {
-    var openSettingsHandler: (() -> Void)?
-    var checkPermissionHandler: (() -> Void)?
-    var diagnoseWindowHandler: (() -> Void)?
-    var quitHandler: (() -> Void)?
+    var openSettingsHandler: (@MainActor @Sendable () -> Void)?
+    var checkPermissionHandler: (@MainActor @Sendable () -> Void)?
+    var diagnoseWindowHandler: (@MainActor @Sendable () -> Void)?
+    var quitHandler: (@MainActor @Sendable () -> Void)?
 
     private var statusItem: NSStatusItem?
     private let menu = NSMenu()
@@ -70,13 +70,15 @@ final class StatusMenuController: NSObject {
         }
 
         pendingPermissionStatusTitle = title
-        DispatchQueue.main.async { [weak self] in
-            guard let self else {
-                return
-            }
+        RunLoop.main.perform(inModes: [.default]) { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else {
+                    return
+                }
 
-            permissionStatusItem?.title = title
-            pendingPermissionStatusTitle = nil
+                permissionStatusItem?.title = title
+                pendingPermissionStatusTitle = nil
+            }
         }
     }
 
@@ -85,15 +87,17 @@ final class StatusMenuController: NSObject {
         statusItem?.menu?.cancelTracking()
     }
 
-    // 菜单 action 延后一轮执行，避免菜单布局过程中同步弹窗或改 UI。
-    private func performDeferredMenuAction(_ handler: (() -> Void)?) {
+    // 菜单 action 等回到默认 RunLoop mode 后执行，避免菜单布局过程中同步弹窗或改 UI。
+    private func performDeferredMenuAction(_ handler: (@MainActor @Sendable () -> Void)?) {
         guard let handler else {
             return
         }
 
         menu.cancelTracking()
-        DispatchQueue.main.async {
-            handler()
+        RunLoop.main.perform(inModes: [.default]) {
+            Task { @MainActor in
+                handler()
+            }
         }
     }
 
