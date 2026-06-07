@@ -84,12 +84,12 @@ final class AXWindowController {
     func captureWindow(at mousePosition: CGPoint, operationMode: OperationMode) -> Bool {
         clearTargetWindow()
 
-        guard let result = lookupWindow(at: mousePosition) else {
+        guard let lookupResult = lookupWindow(at: mousePosition) else {
             return false
         }
 
-        guard isAttributeSettable(operationMode.requiredAttribute, for: result.window) else {
-            let pid = result.processID ?? -1
+        guard let result = compatibleWindowResult(from: lookupResult, at: mousePosition, operationMode: operationMode) else {
+            let pid = lookupResult.processID ?? -1
             logAccessibilityDebugOnce("unsupported-\(operationMode.logKey)-\(pid)") {
                 "Target window does not support \(operationMode.name)"
             }
@@ -126,16 +126,16 @@ final class AXWindowController {
         let appName = appName(for: result.processID)
         let pidText = result.processID.map(String.init) ?? "未知"
         let frameText = copyFrame(for: result.window).map(frameDescription) ?? "未知"
-        let canMove = isAttributeSettable(kAXPositionAttribute as CFString, for: result.window)
-        let canResize = isAttributeSettable(kAXSizeAttribute as CFString, for: result.window)
+        let canMoveText = capabilityText(for: .move, initialResult: result, at: mousePosition)
+        let canResizeText = capabilityText(for: .resize, initialResult: result, at: mousePosition)
 
         return """
         App: \(appName)
         PID: \(pidText)
         捕获方式: \(result.source)
         窗口范围: \(frameText)
-        支持移动: \(yesNo(canMove))
-        支持缩放: \(yesNo(canResize))
+        支持移动: \(canMoveText)
+        支持缩放: \(canResizeText)
         """
     }
 
@@ -211,8 +211,26 @@ final class AXWindowController {
         return copyWindowByWalkingParents(from: element)
     }
 
+    // 当前命中的窗口不可写时，继续找同一 App 或 CG 命中的可操作窗口。
+    private func compatibleWindowResult(
+        from result: WindowLookupResult,
+        at point: CGPoint,
+        operationMode: OperationMode
+    ) -> WindowLookupResult? {
+        if isAttributeSettable(operationMode.requiredAttribute, for: result.window) {
+            return result
+        }
+
+        if let processID = result.processID,
+           let appFallback = copyCompatibleWindowFromApplication(processID: processID, at: point, operationMode: operationMode) {
+            return appFallback
+        }
+
+        return copyWindowFromCGWindow(at: point, operationMode: operationMode)
+    }
+
     // AX 点查找失败时，用 CGWindow 列表找鼠标下最前面的普通窗口。
-    private func copyWindowFromCGWindow(at point: CGPoint) -> WindowLookupResult? {
+    private func copyWindowFromCGWindow(at point: CGPoint, operationMode: OperationMode? = nil) -> WindowLookupResult? {
         guard let windowInfoList = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
@@ -233,14 +251,15 @@ final class AXWindowController {
             }
 
             let appElement = AXUIElementCreateApplication(ownerProcessID)
-            guard let window = copyWindowFromApplication(appElement, at: point) else {
+            guard let window = copyWindowFromApplication(appElement, at: point, operationMode: operationMode) else {
                 continue
             }
 
             logAccessibilityDebugOnce("cg-fallback-\(ownerProcessID)") {
                 "Captured window through CG fallback for pid \(ownerProcessID)"
             }
-            return WindowLookupResult(window: window, source: "CGWindow fallback", processID: ownerProcessID)
+            let source = operationMode == nil ? "CGWindow fallback" : "CGWindow 可操作窗口 fallback"
+            return WindowLookupResult(window: window, source: source, processID: ownerProcessID)
         }
 
         return nil
@@ -459,8 +478,26 @@ final class AXWindowController {
         return (value as! AXValue)
     }
 
+    // 当前 AX 窗口不可操作时，回到同一 App 的窗口列表里找可写候选。
+    private func copyCompatibleWindowFromApplication(
+        processID: pid_t,
+        at point: CGPoint,
+        operationMode: OperationMode
+    ) -> WindowLookupResult? {
+        let appElement = AXUIElementCreateApplication(processID)
+        guard let window = copyWindowFromApplication(appElement, at: point, operationMode: operationMode) else {
+            return nil
+        }
+
+        return WindowLookupResult(window: window, source: "同 App 可操作窗口 fallback", processID: processID)
+    }
+
     // 根据 CGWindow 找到的进程，回到该 App 的 AX windows 中匹配鼠标所在窗口。
-    private func copyWindowFromApplication(_ appElement: AXUIElement, at point: CGPoint) -> AXUIElement? {
+    private func copyWindowFromApplication(
+        _ appElement: AXUIElement,
+        at point: CGPoint,
+        operationMode: OperationMode? = nil
+    ) -> AXUIElement? {
         var windowsValue: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
         guard error == .success, let windows = windowsValue as? [AXUIElement] else {
@@ -472,13 +509,26 @@ final class AXWindowController {
             return nil
         }
 
-        return windows.first { window in
+        let candidates = windows.compactMap { window -> (window: AXUIElement, frame: CGRect)? in
             guard let frame = copyFrame(for: window) else {
-                return false
+                return nil
             }
 
-            return frame.insetBy(dx: -8.0, dy: -8.0).contains(point)
+            guard frame.insetBy(dx: -8.0, dy: -8.0).contains(point) else {
+                return nil
+            }
+
+            if let operationMode,
+               !isAttributeSettable(operationMode.requiredAttribute, for: window) {
+                return nil
+            }
+
+            return (window, frame)
         }
+
+        return candidates
+            .min { frameArea($0.frame) < frameArea($1.frame) }?
+            .window
     }
 
     // 读取窗口的 AXPosition 和 AXSize，组合成 CGRect。
@@ -606,6 +656,24 @@ final class AXWindowController {
         let width = Int(frame.width.rounded())
         let height = Int(frame.height.rounded())
         return "x:\(x), y:\(y), w:\(width), h:\(height)"
+    }
+
+    // 诊断里也使用实际捕获策略，避免把可 fallback 的位置误报为不可操作。
+    private func capabilityText(
+        for operationMode: OperationMode,
+        initialResult: WindowLookupResult,
+        at point: CGPoint
+    ) -> String {
+        guard let result = compatibleWindowResult(from: initialResult, at: point, operationMode: operationMode) else {
+            return "否"
+        }
+
+        return result.source == initialResult.source ? "是" : "是（\(result.source)）"
+    }
+
+    // 多个候选都包含鼠标点时，优先操作更具体的小窗口。
+    private func frameArea(_ frame: CGRect) -> CGFloat {
+        max(frame.width, 0) * max(frame.height, 0)
     }
 
     // 同类失败只记录一次，避免拖动不兼容窗口时持续刷日志。
