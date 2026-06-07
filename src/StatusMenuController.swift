@@ -16,6 +16,7 @@ final class StatusMenuController: NSObject {
     private var statusItem: NSStatusItem?
     private let menu = NSMenu()
     private var permissionStatusItem: NSMenuItem?
+    private var pendingPermissionStatusTitle: String?
 
     // 创建状态栏图标和菜单项；多次调用不会重复创建。
     func show() {
@@ -63,7 +64,20 @@ final class StatusMenuController: NSObject {
 
     // 根据辅助功能授权状态更新菜单中的提示文字。
     func updatePermissionStatus(_ accessibilityEnabled: Bool) {
-        permissionStatusItem?.title = accessibilityEnabled ? "权限: 已授权" : "权限: 未授权"
+        let title = accessibilityEnabled ? "权限: 已授权" : "权限: 未授权"
+        guard permissionStatusItem?.title != title, pendingPermissionStatusTitle != title else {
+            return
+        }
+
+        pendingPermissionStatusTitle = title
+        DispatchQueue.main.async { [weak self] in
+            guard let self else {
+                return
+            }
+
+            permissionStatusItem?.title = title
+            pendingPermissionStatusTitle = nil
+        }
     }
 
     // 退出前取消菜单追踪，避免菜单还打开时直接终止造成状态异常。
@@ -71,20 +85,32 @@ final class StatusMenuController: NSObject {
         statusItem?.menu?.cancelTracking()
     }
 
+    // 菜单 action 延后一轮执行，避免菜单布局过程中同步弹窗或改 UI。
+    private func performDeferredMenuAction(_ handler: (() -> Void)?) {
+        guard let handler else {
+            return
+        }
+
+        menu.cancelTracking()
+        DispatchQueue.main.async {
+            handler()
+        }
+    }
+
     // 以下 Objective-C 选择器由 NSMenuItem 调用，再转发给外部闭包。
     @objc private func openSettings() {
-        openSettingsHandler?()
+        performDeferredMenuAction(openSettingsHandler)
     }
 
     @objc private func checkPermission() {
-        checkPermissionHandler?()
+        performDeferredMenuAction(checkPermissionHandler)
     }
 
     @objc private func diagnoseWindow() {
-        diagnoseWindowHandler?()
+        performDeferredMenuAction(diagnoseWindowHandler)
     }
 
     @objc private func quit() {
-        quitHandler?()
+        performDeferredMenuAction(quitHandler)
     }
 }
