@@ -49,7 +49,9 @@ final class AXWindowController {
         let processID: pid_t?
     }
 
-    private let minimumWindowWriteInterval: TimeInterval = 1.0 / 60.0
+    private static let fallbackMaximumFramesPerSecond = 60
+
+    private var windowWriteInterval = 1.0 / Double(fallbackMaximumFramesPerSecond)
     private var systemWideElement: AXUIElement?
     private var targetWindow: AXUIElement?
     private var targetProcessID: pid_t?
@@ -98,6 +100,7 @@ final class AXWindowController {
         targetProcessID = result.processID
         canMoveTargetWindow = operationMode == .move
         canResizeTargetWindow = operationMode == .resize
+        updateWindowWriteIntervalForCurrentScreens()
 
         guard captureWindowFrame(for: operationMode) else {
             clearTargetWindow()
@@ -332,12 +335,12 @@ final class AXWindowController {
         }
     }
 
-    // 把多次鼠标采样产生的窗口更新合并到固定节奏，避免高频 AX 写入。
+    // 把多次鼠标采样产生的窗口更新合并到屏幕最高刷新率，避免过量 AX 写入。
     private func scheduleWindowWrite() {
         let now = Date.timeIntervalSinceReferenceDate
         let elapsed = now - lastWindowWriteTime
 
-        guard lastWindowWriteTime > 0, elapsed < minimumWindowWriteInterval else {
+        guard lastWindowWriteTime > 0, elapsed < windowWriteInterval else {
             flushPendingWindowWrites()
             return
         }
@@ -346,16 +349,26 @@ final class AXWindowController {
             return
         }
 
-        let delay = minimumWindowWriteInterval - elapsed
+        let delay = windowWriteInterval - elapsed
         let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
             Task { @MainActor [weak self] in
                 self?.windowWriteTimer = nil
                 self?.flushPendingWindowWrites()
             }
         }
-        timer.tolerance = minimumWindowWriteInterval / 2.0
+        timer.tolerance = windowWriteInterval / 2.0
         RunLoop.main.add(timer, forMode: .common)
         windowWriteTimer = timer
+    }
+
+    // 取所有屏幕的最高刷新率；系统取不到时回退到 60Hz。
+    private func updateWindowWriteIntervalForCurrentScreens() {
+        let maximumFramesPerSecond = NSScreen.screens
+            .map(\.maximumFramesPerSecond)
+            .filter { $0 > 0 }
+            .max() ?? Self.fallbackMaximumFramesPerSecond
+
+        windowWriteInterval = 1.0 / Double(maximumFramesPerSecond)
     }
 
     // 立即写入最新的待处理窗口位置或尺寸；旧的中间值会被丢弃。
