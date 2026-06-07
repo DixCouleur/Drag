@@ -22,6 +22,7 @@
 
 // 状态栏图标和菜单
 @property NSStatusItem *statusItem;
+@property NSMenuItem *permissionStatusItem;
 @property id flagsMonitor;
 // 窗口大小和位置
 @property CGSize winSize;
@@ -60,13 +61,76 @@
     // 创建状态栏图标
     NSStatusItem *statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
     statusItem.button.title = @"☁️";
-    statusItem.menu = [NSMenu new];
+    NSMenu *menu = [NSMenu new];
     
     // 添加菜单项
-    [statusItem.menu addItemWithTitle:@"Move: ⌃ + ⌘ + 鼠标移动" action:nil keyEquivalent:@""];
-    [statusItem.menu addItemWithTitle:@"Resize: ⌃ + ⌥ + 鼠标移动" action:nil keyEquivalent:@""];
-    [statusItem.menu addItemWithTitle:@"Quit" action:@selector(exit) keyEquivalent:@"q"];
+    self.permissionStatusItem = [menu addItemWithTitle:@"权限: 检查中" action:nil keyEquivalent:@""];
+    self.permissionStatusItem.enabled = NO;
+
+    NSMenuItem *openSettingsItem = [menu addItemWithTitle:@"打开辅助功能设置" action:@selector(openAccessibilitySettings:) keyEquivalent:@""];
+    openSettingsItem.target = self;
+
+    NSMenuItem *checkPermissionItem = [menu addItemWithTitle:@"检查权限" action:@selector(checkAccessibilityPermissionFromMenu:) keyEquivalent:@""];
+    checkPermissionItem.target = self;
+
+    [menu addItem:[NSMenuItem separatorItem]];
+    [menu addItemWithTitle:@"Move: ⌃ + ⌘ + 鼠标移动" action:nil keyEquivalent:@""];
+    [menu addItemWithTitle:@"Resize: ⌃ + ⌥ + 鼠标移动" action:nil keyEquivalent:@""];
+    [menu addItem:[NSMenuItem separatorItem]];
+
+    NSMenuItem *quitItem = [menu addItemWithTitle:@"Quit" action:@selector(exit) keyEquivalent:@"q"];
+    quitItem.target = self;
+
+    statusItem.menu = menu;
     self.statusItem = statusItem;
+}
+
+- (void)updatePermissionStatus:(BOOL)accessibilityEnabled {
+    self.permissionStatusItem.title = accessibilityEnabled ? @"权限: 已授权" : @"权限: 未授权";
+}
+
+- (BOOL)isAccessibilityTrustedWithPrompt:(BOOL)prompt {
+    NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @(prompt)};
+    return AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
+}
+
+- (void)openAccessibilitySettings:(id)sender {
+    NSURL *url = [NSURL URLWithString:@"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"];
+    if(![NSWorkspace.sharedWorkspace openURL:url]) {
+        NSLog(@"Failed to open Accessibility settings");
+    }
+}
+
+- (void)showAccessibilityPermissionGuide {
+    NSAlert *alert = [[NSAlert alloc] init];
+    alert.alertStyle = NSAlertStyleWarning;
+    [alert setMessageText:@"需要辅助功能权限"];
+    [alert setInformativeText:@"YunDrag 需要辅助功能权限来读取鼠标下的窗口，并移动或调整窗口大小。请在系统设置 > 隐私与安全性 > 辅助功能中启用 YunDrag，然后回到菜单栏点击“检查权限”。"];
+    [alert addButtonWithTitle:@"打开辅助功能设置"];
+    [alert addButtonWithTitle:@"稍后"];
+    [alert addButtonWithTitle:@"退出"];
+
+    NSModalResponse response = [alert runModal];
+    if(response == NSAlertFirstButtonReturn) {
+        [self openAccessibilitySettings:nil];
+    } else if(response == NSAlertThirdButtonReturn) {
+        [self exit];
+    }
+}
+
+- (void)enableAccessibilityFeatures {
+    [self updatePermissionStatus:YES];
+    [self startFlagsObserver];
+}
+
+- (void)checkAccessibilityPermissionFromMenu:(id)sender {
+    if([self isAccessibilityTrustedWithPrompt:NO]) {
+        [self enableAccessibilityFeatures];
+        return;
+    }
+
+    [self updatePermissionStatus:NO];
+    [self showAccessibilityPermissionGuide];
 }
 
 // 更新窗口位置
@@ -163,6 +227,10 @@
 
 // 开始监听修饰键（Control、Command、Option）的状态
 - (void)startFlagsObserver {
+    if(self.flagsMonitor != nil) {
+        return;
+    }
+
     // 创建系统级可访问性元素
     AXUIElementRef systemWideElement = AXUIElementCreateSystemWide();
     if (!systemWideElement) {
@@ -240,24 +308,15 @@
 
 // 应用启动完成时的处理
 - (void)applicationDidFinishLaunching:(NSNotification *)aNotification {
-    // 检查辅助功能权限
-    NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt: @YES};
-    BOOL accessibilityEnabled = AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);
-    
-    // 如果没有权限，显示提示并退出
-    if (!accessibilityEnabled) {
-        NSAlert *alert = [[NSAlert alloc] init];
-        [alert setMessageText:@"需要辅助功能权限"];
-        [alert setInformativeText:@"请在系统偏好设置 > 安全性与隐私 > 隐私 > 辅助功能中允许此应用。"];
-        [alert addButtonWithTitle:@"确定"];
-        [alert runModal];
-        [NSApp terminate:nil];
-        return;
-    }
-    
-    // 初始化状态栏和开始监听修饰键
+    // 初始化状态栏并检查辅助功能权限
     [self initStatusBar];
-    [self startFlagsObserver];
+
+    if([self isAccessibilityTrustedWithPrompt:YES]) {
+        [self enableAccessibilityFeatures];
+    } else {
+        [self updatePermissionStatus:NO];
+        [self showAccessibilityPermissionGuide];
+    }
 }
 
 // 支持安全可恢复状态
