@@ -3,37 +3,33 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 77;
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2B8247BE29EE7D5100B3CDC7 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B8247BD29EE7D5100B3CDC7 /* AppDelegate.m */; };
 		2B8247C329EE7D5200B3CDC7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B8247C229EE7D5200B3CDC7 /* Assets.xcassets */; };
-		2B8247C829EE7D5200B3CDC7 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B8247C729EE7D5200B3CDC7 /* main.m */; };
-		A10000012F00000100000001 /* AccessibilityPermissionGuide.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000006 /* AccessibilityPermissionGuide.m */; };
-		A10000012F00000100000002 /* StatusMenuController.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000008 /* StatusMenuController.m */; };
-		A10000012F00000100000003 /* AXWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000000A /* AXWindowController.m */; };
-		A10000012F00000100000004 /* ModifierMonitor.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000000C /* ModifierMonitor.m */; };
-		AEE6BF4429EEC9BA001ADEBD /* utils.m in Sources */ = {isa = PBXBuildFile; fileRef = AEE6BF4329EEC9BA001ADEBD /* utils.m */; };
+		A10000012F0000010000000F /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000015 /* AppDelegate.swift */; };
+		A10000012F00000100000010 /* AccessibilityPermissionGuide.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000016 /* AccessibilityPermissionGuide.swift */; };
+		A10000012F00000100000011 /* StatusMenuController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000017 /* StatusMenuController.swift */; };
+		A10000012F00000100000012 /* AXWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000018 /* AXWindowController.swift */; };
+		A10000012F00000100000013 /* ModifierMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000019 /* ModifierMonitor.swift */; };
+		A10000012F00000100000014 /* Geometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000001A /* Geometry.swift */; };
+		A10000012F0000010000001B /* main.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000001C /* main.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		2B8247B929EE7D5100B3CDC7 /* YunDrag.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = YunDrag.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2B8247BC29EE7D5100B3CDC7 /* AppDelegate.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AppDelegate.h; sourceTree = "<group>"; };
-		2B8247BD29EE7D5100B3CDC7 /* AppDelegate.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AppDelegate.m; sourceTree = "<group>"; };
 		2B8247C229EE7D5200B3CDC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		2B8247C729EE7D5200B3CDC7 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
+		A10000012F0000010000000D /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		A10000012F0000010000000E /* README.zh-CN.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = "README.zh-CN.md"; sourceTree = "<group>"; };
+		A10000012F00000100000015 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		A10000012F00000100000016 /* AccessibilityPermissionGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AccessibilityPermissionGuide.swift; sourceTree = "<group>"; };
+		A10000012F00000100000017 /* StatusMenuController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusMenuController.swift; sourceTree = "<group>"; };
+		A10000012F00000100000018 /* AXWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AXWindowController.swift; sourceTree = "<group>"; };
+		A10000012F00000100000019 /* ModifierMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModifierMonitor.swift; sourceTree = "<group>"; };
+		A10000012F0000010000001A /* Geometry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Geometry.swift; sourceTree = "<group>"; };
+		A10000012F0000010000001C /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
 		AE33D3DB2DA994CF0090BDE0 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
-		A10000012F00000100000005 /* AccessibilityPermissionGuide.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AccessibilityPermissionGuide.h; sourceTree = "<group>"; };
-		A10000012F00000100000006 /* AccessibilityPermissionGuide.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AccessibilityPermissionGuide.m; sourceTree = "<group>"; };
-		A10000012F00000100000007 /* StatusMenuController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StatusMenuController.h; sourceTree = "<group>"; };
-		A10000012F00000100000008 /* StatusMenuController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StatusMenuController.m; sourceTree = "<group>"; };
-		A10000012F00000100000009 /* AXWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AXWindowController.h; sourceTree = "<group>"; };
-		A10000012F0000010000000A /* AXWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AXWindowController.m; sourceTree = "<group>"; };
-		A10000012F0000010000000B /* ModifierMonitor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModifierMonitor.h; sourceTree = "<group>"; };
-		A10000012F0000010000000C /* ModifierMonitor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ModifierMonitor.m; sourceTree = "<group>"; };
-		AEE6BF4329EEC9BA001ADEBD /* utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = utils.m; sourceTree = "<group>"; };
-		AEE6BF4529EEC9C6001ADEBD /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -50,6 +46,8 @@
 		2B8247B029EE7D5100B3CDC7 = {
 			isa = PBXGroup;
 			children = (
+				A10000012F0000010000000D /* README.md */,
+				A10000012F0000010000000E /* README.zh-CN.md */,
 				2B8247C229EE7D5200B3CDC7 /* Assets.xcassets */,
 				2B8247BB29EE7D5100B3CDC7 /* src */,
 				AE33D3DA2DA994CF0090BDE0 /* Frameworks */,
@@ -68,19 +66,13 @@
 		2B8247BB29EE7D5100B3CDC7 /* src */ = {
 			isa = PBXGroup;
 			children = (
-				2B8247BC29EE7D5100B3CDC7 /* AppDelegate.h */,
-				2B8247BD29EE7D5100B3CDC7 /* AppDelegate.m */,
-				A10000012F00000100000005 /* AccessibilityPermissionGuide.h */,
-				A10000012F00000100000006 /* AccessibilityPermissionGuide.m */,
-				A10000012F00000100000009 /* AXWindowController.h */,
-				A10000012F0000010000000A /* AXWindowController.m */,
-				A10000012F0000010000000B /* ModifierMonitor.h */,
-				A10000012F0000010000000C /* ModifierMonitor.m */,
-				A10000012F00000100000007 /* StatusMenuController.h */,
-				A10000012F00000100000008 /* StatusMenuController.m */,
-				2B8247C729EE7D5200B3CDC7 /* main.m */,
-				AEE6BF4529EEC9C6001ADEBD /* utils.h */,
-				AEE6BF4329EEC9BA001ADEBD /* utils.m */,
+				A10000012F0000010000001C /* main.swift */,
+				A10000012F00000100000015 /* AppDelegate.swift */,
+				A10000012F00000100000016 /* AccessibilityPermissionGuide.swift */,
+				A10000012F00000100000018 /* AXWindowController.swift */,
+				A10000012F0000010000001A /* Geometry.swift */,
+				A10000012F00000100000019 /* ModifierMonitor.swift */,
+				A10000012F00000100000017 /* StatusMenuController.swift */,
 			);
 			path = src;
 			sourceTree = "<group>";
@@ -120,7 +112,7 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastUpgradeCheck = 1430;
+				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					2B8247B829EE7D5100B3CDC7 = {
 						CreatedOnToolsVersion = 14.3;
@@ -128,7 +120,6 @@
 				};
 			};
 			buildConfigurationList = 2B8247B429EE7D5100B3CDC7 /* Build configuration list for PBXProject "YunDrag" */;
-			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -136,6 +127,7 @@
 				Base,
 			);
 			mainGroup = 2B8247B029EE7D5100B3CDC7;
+			preferredProjectObjectVersion = 77;
 			productRefGroup = 2B8247BA29EE7D5100B3CDC7 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -161,13 +153,13 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				AEE6BF4429EEC9BA001ADEBD /* utils.m in Sources */,
-				A10000012F00000100000004 /* ModifierMonitor.m in Sources */,
-				A10000012F00000100000003 /* AXWindowController.m in Sources */,
-				A10000012F00000100000002 /* StatusMenuController.m in Sources */,
-				A10000012F00000100000001 /* AccessibilityPermissionGuide.m in Sources */,
-				2B8247C829EE7D5200B3CDC7 /* main.m in Sources */,
-				2B8247BE29EE7D5100B3CDC7 /* AppDelegate.m in Sources */,
+				A10000012F00000100000010 /* AccessibilityPermissionGuide.swift in Sources */,
+				A10000012F00000100000012 /* AXWindowController.swift in Sources */,
+				A10000012F0000010000000F /* AppDelegate.swift in Sources */,
+				A10000012F00000100000014 /* Geometry.swift in Sources */,
+				A10000012F0000010000001B /* main.swift in Sources */,
+				A10000012F00000100000013 /* ModifierMonitor.swift in Sources */,
+				A10000012F00000100000011 /* StatusMenuController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -177,38 +169,10 @@
 		2B8247CA29EE7D5200B3CDC7 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
+				DEVELOPMENT_TEAM = 925CT3S428;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_DYNAMIC_NO_PIC = NO;
 				GCC_NO_COMMON_BLOCKS = YES;
 				GCC_OPTIMIZATION_LEVEL = 0;
@@ -216,68 +180,28 @@
 					"DEBUG=1",
 					"$(inherited)",
 				);
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Debug;
 		};
 		2B8247CB29EE7D5200B3CDC7 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
-				ALWAYS_SEARCH_USER_PATHS = NO;
-				CLANG_ANALYZER_NONNULL = YES;
-				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CLANG_ENABLE_MODULES = YES;
-				CLANG_ENABLE_OBJC_ARC = YES;
-				CLANG_ENABLE_OBJC_WEAK = YES;
-				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
-				CLANG_WARN_BOOL_CONVERSION = YES;
-				CLANG_WARN_COMMA = YES;
-				CLANG_WARN_CONSTANT_CONVERSION = YES;
-				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
-				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
-				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
-				CLANG_WARN_EMPTY_BODY = YES;
-				CLANG_WARN_ENUM_CONVERSION = YES;
-				CLANG_WARN_INFINITE_RECURSION = YES;
-				CLANG_WARN_INT_CONVERSION = YES;
-				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
-				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
-				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
-				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
-				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
-				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
-				CLANG_WARN_STRICT_PROTOTYPES = YES;
-				CLANG_WARN_SUSPICIOUS_MOVE = YES;
-				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
-				CLANG_WARN_UNREACHABLE_CODE = YES;
-				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = 925CT3S428;
 				ENABLE_NS_ASSERTIONS = NO;
-				ENABLE_STRICT_OBJC_MSGSEND = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu11;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
 				GCC_NO_COMMON_BLOCKS = YES;
-				GCC_OPTIMIZATION_LEVEL = 3;
-				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
-				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
-				GCC_WARN_UNDECLARED_SELECTOR = YES;
-				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
-				GCC_WARN_UNUSED_FUNCTION = YES;
-				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				GCC_OPTIMIZATION_LEVEL = fast;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
 			};
 			name = Release;
 		};
@@ -289,8 +213,6 @@
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
-				DEVELOPMENT_TEAM = 925CT3S428;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = YunDrag;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
@@ -300,10 +222,11 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = me.yun.YunDrag;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Debug;
 		};
@@ -312,12 +235,10 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Distribution";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_TEAM = 925CT3S428;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
 				GCC_OPTIMIZATION_LEVEL = fast;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = YunDrag;
@@ -328,10 +249,11 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				MACOSX_DEPLOYMENT_TARGET = 12.4;
+				MACOSX_DEPLOYMENT_TARGET = 15.6;
 				MARKETING_VERSION = 1.6.1;
 				PRODUCT_BUNDLE_IDENTIFIER = me.yun.YunDrag;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 6.0;
 			};
 			name = Release;
 		};
