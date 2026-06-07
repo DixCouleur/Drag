@@ -5,6 +5,7 @@
 
 import AppKit
 
+// 应用代理负责串起菜单、权限提示和窗口操作监听。
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissionGuide = AccessibilityPermissionGuide()
@@ -14,6 +15,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var permissionPollingTimer: Timer?
     private var permissionPollingAttempts = 0
 
+    // 应用启动后先显示菜单栏入口，再根据权限状态决定是否启用快捷键。
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMenu()
         statusMenuController.show()
@@ -30,12 +32,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         true
     }
 
+    // 退出前停止定时器和监听，避免留下无效的全局事件观察者。
     func applicationWillTerminate(_ notification: Notification) {
         stopPermissionPolling()
         modifierMonitor.stop()
         windowController.reset()
     }
 
+    // 菜单控制器只负责 UI，真正的动作回到 AppDelegate 执行。
     private func configureMenu() {
         statusMenuController.openSettingsHandler = { [weak self] in
             self?.openAccessibilitySettings()
@@ -50,12 +54,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // 权限可用后更新菜单状态并启动全局快捷键监听。
     private func enableAccessibilityFeatures() {
         stopPermissionPolling()
         statusMenuController.updatePermissionStatus(true)
         modifierMonitor.start()
     }
 
+    // 用户手动点击“检查权限”时，重新读取系统授权状态。
     private func checkAccessibilityPermissionFromMenu() {
         guard permissionGuide.isTrusted(prompt: false) else {
             statusMenuController.updatePermissionStatus(false)
@@ -66,6 +72,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enableAccessibilityFeatures()
     }
 
+    // 权限不足时弹出说明，并提供打开系统设置或退出的选择。
     private func showAccessibilityPermissionGuide() {
         permissionGuide.show(
             openSettingsHandler: { [weak self] in
@@ -77,11 +84,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
     }
 
+    // 打开系统设置后开始轮询，这样用户授权后不用再回菜单手动检查。
     private func openAccessibilitySettings() {
         permissionGuide.openSettings()
         startPermissionPolling()
     }
 
+    // 最多轮询两分钟；授权成功会自动停止。
     private func startPermissionPolling() {
         stopPermissionPolling()
         permissionPollingAttempts = 0
@@ -97,12 +106,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionPollingTimer = timer
     }
 
+    // 停止权限轮询，并重置次数，便于下次重新开始。
     private func stopPermissionPolling() {
         permissionPollingTimer?.invalidate()
         permissionPollingTimer = nil
         permissionPollingAttempts = 0
     }
 
+    // 定时检查辅助功能授权是否已经生效。
     @objc private func permissionPollingTimerFired(_ timer: Timer) {
         permissionPollingAttempts += 1
 
@@ -121,6 +132,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         enableAccessibilityFeatures()
     }
 
+    // 菜单中的退出入口会先清理内部状态，再终止应用。
     private func exit() {
         stopPermissionPolling()
         modifierMonitor.stop()

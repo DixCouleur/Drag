@@ -5,6 +5,7 @@
 
 import AppKit
 
+// 管理菜单栏图标和下拉菜单。业务动作通过闭包交给 AppDelegate。
 @MainActor
 final class StatusMenuController: NSObject {
     var openSettingsHandler: (() -> Void)?
@@ -15,6 +16,7 @@ final class StatusMenuController: NSObject {
     private let menu = NSMenu()
     private var permissionStatusItem: NSMenuItem?
 
+    // 创建状态栏图标和菜单项；多次调用不会重复创建。
     func show() {
         guard statusItem == nil else {
             return
@@ -46,6 +48,7 @@ final class StatusMenuController: NSObject {
         self.statusItem = statusItem
     }
 
+    // 配置菜单栏上的可点击按钮，目前使用原始云朵 emoji。
     private func configureStatusButton(_ button: NSStatusBarButton?) {
         guard let button else {
             return
@@ -55,14 +58,17 @@ final class StatusMenuController: NSObject {
         button.toolTip = "YunDrag"
     }
 
+    // 根据辅助功能授权状态更新菜单中的提示文字。
     func updatePermissionStatus(_ accessibilityEnabled: Bool) {
         permissionStatusItem?.title = accessibilityEnabled ? "权限: 已授权" : "权限: 未授权"
     }
 
+    // 退出前取消菜单追踪，避免菜单还打开时直接终止造成状态异常。
     func cancelTracking() {
         statusItem?.menu?.cancelTracking()
     }
 
+    // 以下 Objective-C 选择器由 NSMenuItem 调用，再转发给外部闭包。
     @objc private func openSettings() {
         openSettingsHandler?()
     }
