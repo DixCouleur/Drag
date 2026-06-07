@@ -10,6 +10,10 @@
 		2B8247BE29EE7D5100B3CDC7 /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B8247BD29EE7D5100B3CDC7 /* AppDelegate.m */; };
 		2B8247C329EE7D5200B3CDC7 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B8247C229EE7D5200B3CDC7 /* Assets.xcassets */; };
 		2B8247C829EE7D5200B3CDC7 /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B8247C729EE7D5200B3CDC7 /* main.m */; };
+		A10000012F00000100000001 /* AccessibilityPermissionGuide.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000006 /* AccessibilityPermissionGuide.m */; };
+		A10000012F00000100000002 /* StatusMenuController.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F00000100000008 /* StatusMenuController.m */; };
+		A10000012F00000100000003 /* AXWindowController.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000000A /* AXWindowController.m */; };
+		A10000012F00000100000004 /* ModifierMonitor.m in Sources */ = {isa = PBXBuildFile; fileRef = A10000012F0000010000000C /* ModifierMonitor.m */; };
 		AEE6BF4429EEC9BA001ADEBD /* utils.m in Sources */ = {isa = PBXBuildFile; fileRef = AEE6BF4329EEC9BA001ADEBD /* utils.m */; };
 /* End PBXBuildFile section */
 
@@ -20,6 +24,14 @@
 		2B8247C229EE7D5200B3CDC7 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		2B8247C729EE7D5200B3CDC7 /* main.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = main.m; sourceTree = "<group>"; };
 		AE33D3DB2DA994CF0090BDE0 /* AppKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AppKit.framework; path = System/Library/Frameworks/AppKit.framework; sourceTree = SDKROOT; };
+		A10000012F00000100000005 /* AccessibilityPermissionGuide.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AccessibilityPermissionGuide.h; sourceTree = "<group>"; };
+		A10000012F00000100000006 /* AccessibilityPermissionGuide.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AccessibilityPermissionGuide.m; sourceTree = "<group>"; };
+		A10000012F00000100000007 /* StatusMenuController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = StatusMenuController.h; sourceTree = "<group>"; };
+		A10000012F00000100000008 /* StatusMenuController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = StatusMenuController.m; sourceTree = "<group>"; };
+		A10000012F00000100000009 /* AXWindowController.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = AXWindowController.h; sourceTree = "<group>"; };
+		A10000012F0000010000000A /* AXWindowController.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = AXWindowController.m; sourceTree = "<group>"; };
+		A10000012F0000010000000B /* ModifierMonitor.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = ModifierMonitor.h; sourceTree = "<group>"; };
+		A10000012F0000010000000C /* ModifierMonitor.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = ModifierMonitor.m; sourceTree = "<group>"; };
 		AEE6BF4329EEC9BA001ADEBD /* utils.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = utils.m; sourceTree = "<group>"; };
 		AEE6BF4529EEC9C6001ADEBD /* utils.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = utils.h; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -58,6 +70,14 @@
 			children = (
 				2B8247BC29EE7D5100B3CDC7 /* AppDelegate.h */,
 				2B8247BD29EE7D5100B3CDC7 /* AppDelegate.m */,
+				A10000012F00000100000005 /* AccessibilityPermissionGuide.h */,
+				A10000012F00000100000006 /* AccessibilityPermissionGuide.m */,
+				A10000012F00000100000009 /* AXWindowController.h */,
+				A10000012F0000010000000A /* AXWindowController.m */,
+				A10000012F0000010000000B /* ModifierMonitor.h */,
+				A10000012F0000010000000C /* ModifierMonitor.m */,
+				A10000012F00000100000007 /* StatusMenuController.h */,
+				A10000012F00000100000008 /* StatusMenuController.m */,
 				2B8247C729EE7D5200B3CDC7 /* main.m */,
 				AEE6BF4529EEC9C6001ADEBD /* utils.h */,
 				AEE6BF4329EEC9BA001ADEBD /* utils.m */,
@@ -142,6 +162,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				AEE6BF4429EEC9BA001ADEBD /* utils.m in Sources */,
+				A10000012F00000100000004 /* ModifierMonitor.m in Sources */,
+				A10000012F00000100000003 /* AXWindowController.m in Sources */,
+				A10000012F00000100000002 /* StatusMenuController.m in Sources */,
+				A10000012F00000100000001 /* AccessibilityPermissionGuide.m in Sources */,
 				2B8247C829EE7D5200B3CDC7 /* main.m in Sources */,
 				2B8247BE29EE7D5100B3CDC7 /* AppDelegate.m in Sources */,
 			);
