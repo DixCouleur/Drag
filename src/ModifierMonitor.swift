@@ -11,6 +11,7 @@ final class ModifierMonitor: NSObject {
     private let windowController: AXWindowController
     private var moveEnabled = false
     private var resizeEnabled = false
+    private var capturedOperationMode: AXWindowController.OperationMode?
     private var mousePosition = CGPoint.zero
     private var mouseTimer: Timer?
     private var flagsMonitor: Any?
@@ -41,6 +42,7 @@ final class ModifierMonitor: NSObject {
     // 停止键盘监听和鼠标轮询，并清掉当前捕获的窗口。
     func stop() {
         stopMouseObserver()
+        capturedOperationMode = nil
         windowController.clearTargetWindow()
 
         if let flagsMonitor {
@@ -53,18 +55,21 @@ final class ModifierMonitor: NSObject {
     private func handleModifierFlags(_ flags: NSEvent.ModifierFlags) {
         updateMode(for: flags)
 
-        guard moveEnabled || resizeEnabled else {
+        guard let operationMode = currentOperationMode else {
             stopMouseObserver()
+            capturedOperationMode = nil
             windowController.clearTargetWindow()
             return
         }
 
         mousePosition = currentMousePosition()
-        guard windowController.captureWindow(at: mousePosition) else {
+        guard windowController.captureWindow(at: mousePosition, operationMode: operationMode) else {
             stopMouseObserver()
+            capturedOperationMode = nil
             return
         }
 
+        capturedOperationMode = operationMode
         startMouseObserver()
     }
 
@@ -76,6 +81,19 @@ final class ModifierMonitor: NSObject {
 
         moveEnabled = hasControl && hasCommand && !hasOption
         resizeEnabled = hasControl && hasOption && !hasCommand
+    }
+
+    // 把当前修饰键状态转成窗口控制器需要的操作模式。
+    private var currentOperationMode: AXWindowController.OperationMode? {
+        if moveEnabled {
+            return .move
+        }
+
+        if resizeEnabled {
+            return .resize
+        }
+
+        return nil
     }
 
     // 鼠标移动没有直接的全局拖拽事件，这里用高频 Timer 采样位置变化。
@@ -109,9 +127,15 @@ final class ModifierMonitor: NSObject {
     // 计算鼠标偏移量，并把偏移应用到窗口位置或窗口尺寸。
     private func updateTargetWindowForCurrentMousePosition() {
         updateMode(for: currentModifierFlags())
-        guard moveEnabled || resizeEnabled else {
+        guard let operationMode = currentOperationMode else {
             stopMouseObserver()
+            capturedOperationMode = nil
             windowController.clearTargetWindow()
+            return
+        }
+
+        if operationMode != capturedOperationMode {
+            handleModifierFlags(currentModifierFlags())
             return
         }
 

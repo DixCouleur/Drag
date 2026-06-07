@@ -14,10 +14,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let statusMenuController = StatusMenuController()
     private var permissionPollingTimer: Timer?
     private var permissionPollingAttempts = 0
+    private var workspaceObservers: [NSObjectProtocol] = []
+    private var accessibilityFeaturesEnabled = false
+    private var suspendedForSystemState = false
 
     // 应用启动后先显示菜单栏入口，再根据权限状态决定是否启用快捷键。
     func applicationDidFinishLaunching(_ notification: Notification) {
         configureMenu()
+        configureSystemStateObservers()
         statusMenuController.show()
 
         if permissionGuide.isTrusted(prompt: true) {
@@ -35,6 +39,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 退出前停止定时器和监听，避免留下无效的全局事件观察者。
     func applicationWillTerminate(_ notification: Notification) {
         stopPermissionPolling()
+        removeSystemStateObservers()
         modifierMonitor.stop()
         windowController.reset()
     }
@@ -61,14 +66,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 权限可用后更新菜单状态并启动全局快捷键监听。
     private func enableAccessibilityFeatures() {
         stopPermissionPolling()
+        accessibilityFeaturesEnabled = true
         statusMenuController.updatePermissionStatus(true)
+
+        guard !suspendedForSystemState else {
+            return
+        }
+
         modifierMonitor.start()
+    }
+
+    // 权限失效或退出时统一停掉监听和缓存。
+    private func disableAccessibilityFeatures(updateMenu: Bool) {
+        accessibilityFeaturesEnabled = false
+        modifierMonitor.stop()
+        windowController.reset()
+
+        if updateMenu {
+            statusMenuController.updatePermissionStatus(false)
+        }
     }
 
     // 用户手动点击“检查权限”时，重新读取系统授权状态。
     private func checkAccessibilityPermissionFromMenu() {
         guard permissionGuide.isTrusted(prompt: false) else {
-            statusMenuController.updatePermissionStatus(false)
+            disableAccessibilityFeatures(updateMenu: true)
             showAccessibilityPermissionGuide()
             return
         }
@@ -79,7 +101,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 从菜单触发一次窗口诊断，帮助判断当前 App 为什么不能移动或缩放。
     private func diagnoseCurrentWindow() {
         guard permissionGuide.isTrusted(prompt: false) else {
-            statusMenuController.updatePermissionStatus(false)
+            disableAccessibilityFeatures(updateMenu: true)
             showMessage(title: "当前窗口诊断", message: "尚未授予辅助功能权限，无法读取当前窗口。请先打开辅助功能设置并启用 YunDrag。")
             return
         }
@@ -139,6 +161,78 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         permissionPollingAttempts = 0
     }
 
+    // 系统睡眠、锁屏或屏幕休眠时暂停监听，减少后台常驻工作。
+    private func configureSystemStateObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        let suspendNotifications: [Notification.Name] = [
+            NSWorkspace.willSleepNotification,
+            NSWorkspace.screensDidSleepNotification,
+            NSWorkspace.sessionDidResignActiveNotification
+        ]
+        let resumeNotifications: [Notification.Name] = [
+            NSWorkspace.didWakeNotification,
+            NSWorkspace.screensDidWakeNotification,
+            NSWorkspace.sessionDidBecomeActiveNotification
+        ]
+
+        workspaceObservers = suspendNotifications.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.suspendAccessibilityFeaturesForSystemState()
+                }
+            }
+        } + resumeNotifications.map { name in
+            center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor [weak self] in
+                    self?.resumeAccessibilityFeaturesForSystemState()
+                }
+            }
+        }
+    }
+
+    // 移除系统状态通知观察者。
+    private func removeSystemStateObservers() {
+        let center = NSWorkspace.shared.notificationCenter
+        for observer in workspaceObservers {
+            center.removeObserver(observer)
+        }
+
+        workspaceObservers.removeAll()
+    }
+
+    // 暂停时不改变权限菜单，只停止全局监听和 AX 缓存。
+    private func suspendAccessibilityFeaturesForSystemState() {
+        guard accessibilityFeaturesEnabled, !suspendedForSystemState else {
+            return
+        }
+
+        suspendedForSystemState = true
+        modifierMonitor.stop()
+        windowController.reset()
+        AppLog.app.info("Suspended accessibility features for system state")
+    }
+
+    // 系统恢复后重新确认权限，仍然授权才恢复快捷键监听。
+    private func resumeAccessibilityFeaturesForSystemState() {
+        guard suspendedForSystemState else {
+            return
+        }
+
+        suspendedForSystemState = false
+        guard accessibilityFeaturesEnabled else {
+            return
+        }
+
+        guard permissionGuide.isTrusted(prompt: false) else {
+            disableAccessibilityFeatures(updateMenu: true)
+            AppLog.accessibility.info("Accessibility permission is no longer trusted after system resume")
+            return
+        }
+
+        modifierMonitor.start()
+        AppLog.app.info("Resumed accessibility features after system state change")
+    }
+
     // 定时检查辅助功能授权是否已经生效。
     @objc private func permissionPollingTimerFired(_ timer: Timer) {
         permissionPollingAttempts += 1
@@ -161,8 +255,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 菜单中的退出入口会先清理内部状态，再终止应用。
     private func exit() {
         stopPermissionPolling()
-        modifierMonitor.stop()
-        windowController.reset()
+        disableAccessibilityFeatures(updateMenu: false)
         statusMenuController.cancelTracking()
         NSApp.terminate(nil)
     }

@@ -11,16 +11,57 @@ import Foundation
 // 负责通过 macOS Accessibility API 找到鼠标下的窗口，并移动或调整它。
 @MainActor
 final class AXWindowController {
+    enum OperationMode: Equatable {
+        case move
+        case resize
+
+        var requiredAttribute: CFString {
+            switch self {
+            case .move:
+                kAXPositionAttribute as CFString
+            case .resize:
+                kAXSizeAttribute as CFString
+            }
+        }
+
+        var name: String {
+            switch self {
+            case .move:
+                "移动"
+            case .resize:
+                "缩放"
+            }
+        }
+
+        var logKey: String {
+            switch self {
+            case .move:
+                "move"
+            case .resize:
+                "resize"
+            }
+        }
+    }
+
     private struct WindowLookupResult {
         let window: AXUIElement
         let source: String
         let processID: pid_t?
     }
 
+    private let minimumWindowWriteInterval: TimeInterval = 1.0 / 60.0
     private var systemWideElement: AXUIElement?
     private var targetWindow: AXUIElement?
+    private var targetProcessID: pid_t?
+    private var canMoveTargetWindow = false
+    private var canResizeTargetWindow = false
     private var windowSize = CGSize.zero
     private var windowPosition = CGPoint.zero
+    private var pendingWindowSize: CGSize?
+    private var pendingWindowPosition: CGPoint?
+    private var windowWriteTimer: Timer?
+    private var lastWindowWriteTime: TimeInterval = 0
+    private var loggedFailureKeys = Set<String>()
 
     // ModifierMonitor 用它判断当前是否已经捕获到可操作窗口。
     var hasTargetWindow: Bool {
@@ -38,14 +79,31 @@ final class AXWindowController {
     }
 
     // 捕获鼠标当前位置下的窗口，优先走 AX，失败后走 CGWindow fallback。
-    func captureWindow(at mousePosition: CGPoint) -> Bool {
+    func captureWindow(at mousePosition: CGPoint, operationMode: OperationMode) -> Bool {
+        clearTargetWindow()
+
         guard let result = lookupWindow(at: mousePosition) else {
-            clearTargetWindow()
+            return false
+        }
+
+        guard isAttributeSettable(operationMode.requiredAttribute, for: result.window) else {
+            let pid = result.processID ?? -1
+            logAccessibilityDebugOnce("unsupported-\(operationMode.logKey)-\(pid)") {
+                "Target window does not support \(operationMode.name)"
+            }
             return false
         }
 
         targetWindow = result.window
-        captureWindowFrame()
+        targetProcessID = result.processID
+        canMoveTargetWindow = operationMode == .move
+        canResizeTargetWindow = operationMode == .resize
+
+        guard captureWindowFrame(for: operationMode) else {
+            clearTargetWindow()
+            return false
+        }
+
         return true
     }
 
@@ -80,27 +138,35 @@ final class AXWindowController {
 
     // 根据鼠标偏移移动窗口。
     func moveWindow(by offset: CGPoint) {
-        guard targetWindow != nil else {
+        guard targetWindow != nil, canMoveTargetWindow else {
             return
         }
 
         windowPosition = windowPosition + offset
-        updateWindowPosition(windowPosition)
+        pendingWindowPosition = windowPosition
+        scheduleWindowWrite()
     }
 
     // 根据鼠标偏移调整窗口大小。
     func resizeWindow(by offset: CGPoint) {
-        guard targetWindow != nil else {
+        guard targetWindow != nil, canResizeTargetWindow else {
             return
         }
 
         windowSize = windowSize + offset
-        updateWindowSize(windowSize)
+        pendingWindowSize = windowSize
+        scheduleWindowWrite()
     }
 
     // 清除当前捕获的目标窗口。
     func clearTargetWindow() {
+        flushPendingWindowWrites()
+        stopWindowWriteTimer()
         targetWindow = nil
+        targetProcessID = nil
+        canMoveTargetWindow = false
+        canResizeTargetWindow = false
+        lastWindowWriteTime = 0
     }
 
     // 应用退出或权限状态变化时，清理缓存的 AX 对象。
@@ -127,7 +193,9 @@ final class AXWindowController {
             return copyWindow(for: targetElement) ?? copyWindowFromCGWindow(at: mousePosition)
         }
 
-        AppLog.accessibility.debug("Failed to get element at position: \(elementError.rawValue, privacy: .public)")
+        logAccessibilityDebugOnce("element-at-position-\(elementError.rawValue)") {
+            "Failed to get element at position: \(elementError.rawValue)"
+        }
         return copyWindowFromCGWindow(at: mousePosition)
     }
 
@@ -146,7 +214,9 @@ final class AXWindowController {
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
         ) as? [[String: Any]] else {
-            AppLog.accessibility.debug("Failed to copy CG window list")
+            logAccessibilityDebugOnce("cg-window-list") {
+                "Failed to copy CG window list"
+            }
             return nil
         }
 
@@ -164,7 +234,9 @@ final class AXWindowController {
                 continue
             }
 
-            AppLog.accessibility.debug("Captured window through CG fallback for pid \(ownerProcessID, privacy: .public)")
+            logAccessibilityDebugOnce("cg-fallback-\(ownerProcessID)") {
+                "Captured window through CG fallback for pid \(ownerProcessID)"
+            }
             return WindowLookupResult(window: window, source: "CGWindow fallback", processID: ownerProcessID)
         }
 
@@ -177,13 +249,17 @@ final class AXWindowController {
         let error = AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue)
         guard error == .success else {
             if error != .attributeUnsupported, error != .noValue {
-                AppLog.accessibility.debug("Failed to get window attribute: \(error.rawValue, privacy: .public)")
+                logAccessibilityDebugOnce("window-attribute-\(error.rawValue)") {
+                    "Failed to get window attribute: \(error.rawValue)"
+                }
             }
             return nil
         }
 
         guard let window = axElement(from: windowValue) else {
-            AppLog.accessibility.debug("Window attribute did not contain an AXUIElement")
+            logAccessibilityDebugOnce("window-attribute-type") {
+                "Window attribute did not contain an AXUIElement"
+            }
             return nil
         }
 
@@ -199,7 +275,9 @@ final class AXWindowController {
             let roleError = AXUIElementCopyAttributeValue(candidate, kAXRoleAttribute as CFString, &roleValue)
             guard roleError == .success, let role = roleValue as? String else {
                 if roleError != .success {
-                    AppLog.accessibility.debug("Failed to get role: \(roleError.rawValue, privacy: .public)")
+                    logAccessibilityDebugOnce("role-\(roleError.rawValue)") {
+                        "Failed to get role: \(roleError.rawValue)"
+                    }
                 }
                 return nil
             }
@@ -212,7 +290,9 @@ final class AXWindowController {
             let parentError = AXUIElementCopyAttributeValue(candidate, kAXParentAttribute as CFString, &parentValue)
             guard parentError == .success, let parent = axElement(from: parentValue) else {
                 if parentError != .success {
-                    AppLog.accessibility.debug("Failed to get parent element: \(parentError.rawValue, privacy: .public)")
+                    logAccessibilityDebugOnce("parent-\(parentError.rawValue)") {
+                        "Failed to get parent element: \(parentError.rawValue)"
+                    }
                 }
                 return nil
             }
@@ -223,19 +303,91 @@ final class AXWindowController {
         return nil
     }
 
-    // 捕获窗口时记录初始位置和大小，后续移动/缩放都基于这两个值累计。
-    private func captureWindowFrame() {
+    // 捕获窗口时只读取当前操作必需的属性，减少不必要的 AX 读取。
+    private func captureWindowFrame(for operationMode: OperationMode) -> Bool {
         guard let targetWindow else {
+            return false
+        }
+
+        switch operationMode {
+        case .move:
+            guard let position = copyPointAttribute(kAXPositionAttribute as CFString, from: targetWindow) else {
+                logAccessibilityDebugOnce("capture-position-\(targetProcessID ?? -1)") {
+                    "Failed to capture initial window position"
+                }
+                return false
+            }
+            windowPosition = position
+            return true
+
+        case .resize:
+            guard let size = copySizeAttribute(kAXSizeAttribute as CFString, from: targetWindow) else {
+                logAccessibilityDebugOnce("capture-size-\(targetProcessID ?? -1)") {
+                    "Failed to capture initial window size"
+                }
+                return false
+            }
+            windowSize = size
+            return true
+        }
+    }
+
+    // 把多次鼠标采样产生的窗口更新合并到固定节奏，避免高频 AX 写入。
+    private func scheduleWindowWrite() {
+        let now = Date.timeIntervalSinceReferenceDate
+        let elapsed = now - lastWindowWriteTime
+
+        guard lastWindowWriteTime > 0, elapsed < minimumWindowWriteInterval else {
+            flushPendingWindowWrites()
             return
         }
 
-        if let position = copyPointAttribute(kAXPositionAttribute as CFString, from: targetWindow) {
-            windowPosition = position
+        guard windowWriteTimer == nil else {
+            return
         }
 
-        if let size = copySizeAttribute(kAXSizeAttribute as CFString, from: targetWindow) {
-            windowSize = size
+        let delay = minimumWindowWriteInterval - elapsed
+        let timer = Timer(timeInterval: delay, repeats: false) { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.windowWriteTimer = nil
+                self?.flushPendingWindowWrites()
+            }
         }
+        timer.tolerance = minimumWindowWriteInterval / 2.0
+        RunLoop.main.add(timer, forMode: .common)
+        windowWriteTimer = timer
+    }
+
+    // 立即写入最新的待处理窗口位置或尺寸；旧的中间值会被丢弃。
+    private func flushPendingWindowWrites() {
+        guard targetWindow != nil else {
+            pendingWindowPosition = nil
+            pendingWindowSize = nil
+            return
+        }
+
+        let position = pendingWindowPosition
+        let size = pendingWindowSize
+        pendingWindowPosition = nil
+        pendingWindowSize = nil
+
+        if let position {
+            updateWindowPosition(position)
+        }
+
+        if let size {
+            updateWindowSize(size)
+        }
+
+        if position != nil || size != nil {
+            lastWindowWriteTime = Date.timeIntervalSinceReferenceDate
+        }
+    }
+
+    // 停止尚未触发的写入 Timer。
+    private func stopWindowWriteTimer() {
+        windowWriteTimer?.invalidate()
+        windowWriteTimer = nil
     }
 
     // 把新的左上角坐标写回 AXWindow。
@@ -251,7 +403,9 @@ final class AXWindowController {
 
         let error = AXUIElementSetAttributeValue(targetWindow, kAXPositionAttribute as CFString, value)
         if error != .success {
-            AppLog.accessibility.debug("Failed to set window position: \(error.rawValue, privacy: .public)")
+            logAccessibilityDebugOnce("set-position-\(targetProcessID ?? -1)-\(error.rawValue)") {
+                "Failed to set window position: \(error.rawValue)"
+            }
         }
     }
 
@@ -268,7 +422,9 @@ final class AXWindowController {
 
         let error = AXUIElementSetAttributeValue(targetWindow, kAXSizeAttribute as CFString, value)
         if error != .success {
-            AppLog.accessibility.debug("Failed to set window size: \(error.rawValue, privacy: .public)")
+            logAccessibilityDebugOnce("set-size-\(targetProcessID ?? -1)-\(error.rawValue)") {
+                "Failed to set window size: \(error.rawValue)"
+            }
         }
     }
 
@@ -296,7 +452,9 @@ final class AXWindowController {
         let error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute as CFString, &windowsValue)
         guard error == .success, let windows = windowsValue as? [AXUIElement] else {
             if error != .success {
-                AppLog.accessibility.debug("Failed to get app windows: \(error.rawValue, privacy: .public)")
+                logAccessibilityDebugOnce("app-windows-\(error.rawValue)") {
+                    "Failed to get app windows: \(error.rawValue)"
+                }
             }
             return nil
         }
@@ -435,6 +593,17 @@ final class AXWindowController {
         let width = Int(frame.width.rounded())
         let height = Int(frame.height.rounded())
         return "x:\(x), y:\(y), w:\(width), h:\(height)"
+    }
+
+    // 同类失败只记录一次，避免拖动不兼容窗口时持续刷日志。
+    private func logAccessibilityDebugOnce(_ key: String, message: () -> String) {
+        guard !loggedFailureKeys.contains(key) else {
+            return
+        }
+
+        loggedFailureKeys.insert(key)
+        let text = message()
+        AppLog.accessibility.debug("\(text, privacy: .public)")
     }
 
     private func yesNo(_ value: Bool) -> String {
