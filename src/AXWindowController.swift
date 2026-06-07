@@ -41,7 +41,7 @@ final class AXWindowController {
 
         guard elementError == .success, let targetElement else {
             if elementError != .success {
-                NSLog("Failed to get element at position: \(elementError.rawValue)")
+                AppLog.accessibility.debug("Failed to get element at position: \(elementError.rawValue, privacy: .public)")
             }
             clearTargetWindow()
             return false
@@ -85,6 +85,32 @@ final class AXWindowController {
     }
 
     private func copyWindow(for element: AXUIElement) -> AXUIElement? {
+        if let window = copyWindowAttribute(from: element) {
+            return window
+        }
+
+        return copyWindowByWalkingParents(from: element)
+    }
+
+    private func copyWindowAttribute(from element: AXUIElement) -> AXUIElement? {
+        var windowValue: CFTypeRef?
+        let error = AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue)
+        guard error == .success else {
+            if error != .attributeUnsupported, error != .noValue {
+                AppLog.accessibility.debug("Failed to get window attribute: \(error.rawValue, privacy: .public)")
+            }
+            return nil
+        }
+
+        guard let window = axElement(from: windowValue) else {
+            AppLog.accessibility.debug("Window attribute did not contain an AXUIElement")
+            return nil
+        }
+
+        return window
+    }
+
+    private func copyWindowByWalkingParents(from element: AXUIElement) -> AXUIElement? {
         var currentElement: AXUIElement? = element
 
         while let candidate = currentElement {
@@ -92,7 +118,7 @@ final class AXWindowController {
             let roleError = AXUIElementCopyAttributeValue(candidate, kAXRoleAttribute as CFString, &roleValue)
             guard roleError == .success, let role = roleValue as? String else {
                 if roleError != .success {
-                    NSLog("Failed to get role: \(roleError.rawValue)")
+                    AppLog.accessibility.debug("Failed to get role: \(roleError.rawValue, privacy: .public)")
                 }
                 return nil
             }
@@ -105,7 +131,7 @@ final class AXWindowController {
             let parentError = AXUIElementCopyAttributeValue(candidate, kAXParentAttribute as CFString, &parentValue)
             guard parentError == .success, let parent = axElement(from: parentValue) else {
                 if parentError != .success {
-                    NSLog("Failed to get parent element: \(parentError.rawValue)")
+                    AppLog.accessibility.debug("Failed to get parent element: \(parentError.rawValue, privacy: .public)")
                 }
                 return nil
             }
@@ -152,7 +178,7 @@ final class AXWindowController {
 
         let error = AXUIElementSetAttributeValue(targetWindow, kAXPositionAttribute as CFString, value)
         if error != .success {
-            NSLog("Failed to set window position: \(error.rawValue)")
+            AppLog.accessibility.debug("Failed to set window position: \(error.rawValue, privacy: .public)")
         }
     }
 
@@ -168,7 +194,7 @@ final class AXWindowController {
 
         let error = AXUIElementSetAttributeValue(targetWindow, kAXSizeAttribute as CFString, value)
         if error != .success {
-            NSLog("Failed to set window size: \(error.rawValue)")
+            AppLog.accessibility.debug("Failed to set window size: \(error.rawValue, privacy: .public)")
         }
     }
 

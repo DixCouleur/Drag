@@ -13,7 +13,7 @@ YunDrag is a lightweight macOS menu bar utility for moving and resizing windows 
 
 ## Requirements
 
-- macOS 15.6 or later.
+- macOS 12.4 or later.
 - Xcode with the macOS SDK.
 - Accessibility permission enabled for YunDrag.
 
@@ -39,7 +39,7 @@ rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release
 
 ## Usage
 
-Launch `YunDrag.app`, then grant Accessibility permission when prompted. If permission is not active yet, open the menu bar item and choose `打开辅助功能设置`; after enabling YunDrag in System Settings, choose `检查权限`.
+Launch `YunDrag.app`, then grant Accessibility permission when prompted. If permission is not active yet, open the menu bar item and choose `打开辅助功能设置`; after enabling YunDrag in System Settings, the app detects the permission and enables shortcuts automatically.
 
 The app watches modifier-key changes globally. Hold the relevant shortcut, move the mouse, and the target window follows or resizes.
 
