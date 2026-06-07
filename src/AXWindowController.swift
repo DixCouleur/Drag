@@ -49,7 +49,7 @@ final class AXWindowController {
         let processID: pid_t?
     }
 
-    private static let fallbackMaximumFramesPerSecond = 60
+    private static let fallbackMaximumFramesPerSecond = 144.0
 
     private var windowWriteInterval = 1.0 / Double(fallbackMaximumFramesPerSecond)
     private var systemWideElement: AXUIElement?
@@ -100,7 +100,6 @@ final class AXWindowController {
         targetProcessID = result.processID
         canMoveTargetWindow = operationMode == .move
         canResizeTargetWindow = operationMode == .resize
-        updateWindowWriteIntervalForCurrentScreens()
 
         guard captureWindowFrame(for: operationMode) else {
             clearTargetWindow()
@@ -378,16 +377,6 @@ final class AXWindowController {
         timer.tolerance = windowWriteInterval / 2.0
         RunLoop.main.add(timer, forMode: .common)
         windowWriteTimer = timer
-    }
-
-    // 取所有屏幕的最高刷新率；系统取不到时回退到 60Hz。
-    private func updateWindowWriteIntervalForCurrentScreens() {
-        let maximumFramesPerSecond = NSScreen.screens
-            .map(\.maximumFramesPerSecond)
-            .filter { $0 > 0 }
-            .max() ?? Self.fallbackMaximumFramesPerSecond
-
-        windowWriteInterval = 1.0 / Double(maximumFramesPerSecond)
     }
 
     // 立即写入最新的待处理窗口位置或尺寸；旧的中间值会被丢弃。
