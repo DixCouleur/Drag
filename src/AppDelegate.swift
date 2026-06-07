@@ -49,6 +49,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             self?.checkAccessibilityPermissionFromMenu()
         }
 
+        statusMenuController.diagnoseWindowHandler = { [weak self] in
+            self?.diagnoseCurrentWindow()
+        }
+
         statusMenuController.quitHandler = { [weak self] in
             self?.exit()
         }
@@ -70,6 +74,28 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         enableAccessibilityFeatures()
+    }
+
+    // 从菜单触发一次窗口诊断，帮助判断当前 App 为什么不能移动或缩放。
+    private func diagnoseCurrentWindow() {
+        guard permissionGuide.isTrusted(prompt: false) else {
+            statusMenuController.updatePermissionStatus(false)
+            showMessage(title: "当前窗口诊断", message: "尚未授予辅助功能权限，无法读取当前窗口。请先打开辅助功能设置并启用 YunDrag。")
+            return
+        }
+
+        let report = windowController.diagnosticReport(at: currentMousePosition())
+        showMessage(title: "当前窗口诊断", message: report)
+    }
+
+    // 使用简单弹窗显示诊断或状态说明。
+    private func showMessage(title: String, message: String) {
+        let alert = NSAlert()
+        alert.alertStyle = .informational
+        alert.messageText = title
+        alert.informativeText = message
+        alert.addButton(withTitle: "好")
+        alert.runModal()
     }
 
     // 权限不足时弹出说明，并提供打开系统设置或退出的选择。

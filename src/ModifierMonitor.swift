@@ -51,13 +51,7 @@ final class ModifierMonitor: NSObject {
 
     // 根据当前修饰键判断是移动模式还是缩放模式。
     private func handleModifierFlags(_ flags: NSEvent.ModifierFlags) {
-        let hasControl = flags.contains(.control)
-        let hasCommand = flags.contains(.command)
-        let hasOption = flags.contains(.option)
-
-        // 允许额外修饰键，但 Command 和 Option 同时按下时不进入任一模式，避免冲突。
-        moveEnabled = hasControl && hasCommand && !hasOption
-        resizeEnabled = hasControl && hasOption && !hasCommand
+        updateMode(for: flags)
 
         guard moveEnabled || resizeEnabled else {
             stopMouseObserver()
@@ -72,6 +66,16 @@ final class ModifierMonitor: NSObject {
         }
 
         startMouseObserver()
+    }
+
+    // 允许额外修饰键，但 Command 和 Option 同时按下时不进入任一模式，避免冲突。
+    private func updateMode(for flags: NSEvent.ModifierFlags) {
+        let hasControl = flags.contains(.control)
+        let hasCommand = flags.contains(.command)
+        let hasOption = flags.contains(.option)
+
+        moveEnabled = hasControl && hasCommand && !hasOption
+        resizeEnabled = hasControl && hasOption && !hasCommand
     }
 
     // 鼠标移动没有直接的全局拖拽事件，这里用高频 Timer 采样位置变化。
@@ -104,6 +108,13 @@ final class ModifierMonitor: NSObject {
 
     // 计算鼠标偏移量，并把偏移应用到窗口位置或窗口尺寸。
     private func updateTargetWindowForCurrentMousePosition() {
+        updateMode(for: currentModifierFlags())
+        guard moveEnabled || resizeEnabled else {
+            stopMouseObserver()
+            windowController.clearTargetWindow()
+            return
+        }
+
         guard windowController.hasTargetWindow else {
             return
         }
@@ -123,5 +134,12 @@ final class ModifierMonitor: NSObject {
         }
 
         mousePosition = newMousePosition
+    }
+
+    // Timer 中主动读取当前修饰键，兜底处理 flagsChanged 事件丢失的情况。
+    private func currentModifierFlags() -> NSEvent.ModifierFlags {
+        NSEvent.ModifierFlags(
+            rawValue: UInt(CGEventSource.flagsState(.combinedSessionState).rawValue)
+        ).intersection(.deviceIndependentFlagsMask)
     }
 }

@@ -10,6 +10,7 @@ import AppKit
 final class StatusMenuController: NSObject {
     var openSettingsHandler: (() -> Void)?
     var checkPermissionHandler: (() -> Void)?
+    var diagnoseWindowHandler: (() -> Void)?
     var quitHandler: (() -> Void)?
 
     private var statusItem: NSStatusItem?
@@ -37,11 +38,13 @@ final class StatusMenuController: NSObject {
         checkPermissionItem.target = self
 
         menu.addItem(.separator())
-        menu.addItem(withTitle: "Move: ⌃ + ⌘ + 鼠标移动", action: nil, keyEquivalent: "")
-        menu.addItem(withTitle: "Resize: ⌃ + ⌥ + 鼠标移动", action: nil, keyEquivalent: "")
+        menu.addItem(withTitle: "移动: ⌃ + ⌘ + 鼠标移动", action: nil, keyEquivalent: "")
+        menu.addItem(withTitle: "缩放: ⌃ + ⌥ + 鼠标移动", action: nil, keyEquivalent: "")
+        let diagnoseWindowItem = menu.addItem(withTitle: "诊断当前窗口", action: #selector(diagnoseWindow), keyEquivalent: "")
+        diagnoseWindowItem.target = self
         menu.addItem(.separator())
 
-        let quitItem = menu.addItem(withTitle: "Quit", action: #selector(quit), keyEquivalent: "q")
+        let quitItem = menu.addItem(withTitle: "退出", action: #selector(quit), keyEquivalent: "q")
         quitItem.target = self
 
         statusItem.menu = menu
@@ -75,6 +78,10 @@ final class StatusMenuController: NSObject {
 
     @objc private func checkPermission() {
         checkPermissionHandler?()
+    }
+
+    @objc private func diagnoseWindow() {
+        diagnoseWindowHandler?()
     }
 
     @objc private func quit() {

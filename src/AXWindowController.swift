@@ -4,12 +4,19 @@
 //
 
 import ApplicationServices
+import AppKit
 import CoreGraphics
 import Foundation
 
 // 负责通过 macOS Accessibility API 找到鼠标下的窗口，并移动或调整它。
 @MainActor
 final class AXWindowController {
+    private struct WindowLookupResult {
+        let window: AXUIElement
+        let source: String
+        let processID: pid_t?
+    }
+
     private var systemWideElement: AXUIElement?
     private var targetWindow: AXUIElement?
     private var windowSize = CGSize.zero
@@ -32,34 +39,43 @@ final class AXWindowController {
 
     // 捕获鼠标当前位置下的窗口，优先走 AX，失败后走 CGWindow fallback。
     func captureWindow(at mousePosition: CGPoint) -> Bool {
-        guard prepareSystemWideElement(), let systemWideElement else {
-            return false
-        }
-
-        var targetElement: AXUIElement?
-        let elementError = AXUIElementCopyElementAtPosition(
-            systemWideElement,
-            Float(mousePosition.x),
-            Float(mousePosition.y),
-            &targetElement
-        )
-
-        let targetWindow: AXUIElement?
-        if elementError == .success, let targetElement {
-            targetWindow = copyWindow(for: targetElement) ?? copyWindowFromCGWindow(at: mousePosition)
-        } else {
-            AppLog.accessibility.debug("Failed to get element at position: \(elementError.rawValue, privacy: .public)")
-            targetWindow = copyWindowFromCGWindow(at: mousePosition)
-        }
-
-        guard let targetWindow else {
+        guard let result = lookupWindow(at: mousePosition) else {
             clearTargetWindow()
             return false
         }
 
-        self.targetWindow = targetWindow
+        targetWindow = result.window
         captureWindowFrame()
         return true
+    }
+
+    // 生成当前鼠标下窗口的可读诊断信息，方便判断某些 App 为什么无效。
+    func diagnosticReport(at mousePosition: CGPoint) -> String {
+        guard let result = lookupWindow(at: mousePosition) else {
+            return """
+            未找到当前鼠标下的可操作窗口。
+
+            可能原因:
+            - 鼠标下方不是标准应用窗口
+            - 该窗口没有暴露辅助功能窗口信息
+            - 系统安全策略阻止读取该窗口
+            """
+        }
+
+        let appName = appName(for: result.processID)
+        let pidText = result.processID.map(String.init) ?? "未知"
+        let frameText = copyFrame(for: result.window).map(frameDescription) ?? "未知"
+        let canMove = isAttributeSettable(kAXPositionAttribute as CFString, for: result.window)
+        let canResize = isAttributeSettable(kAXSizeAttribute as CFString, for: result.window)
+
+        return """
+        App: \(appName)
+        PID: \(pidText)
+        捕获方式: \(result.source)
+        窗口范围: \(frameText)
+        支持移动: \(yesNo(canMove))
+        支持缩放: \(yesNo(canResize))
+        """
     }
 
     // 根据鼠标偏移移动窗口。
@@ -94,16 +110,38 @@ final class AXWindowController {
     }
 
     // 从一个 AX 元素推导所属窗口：先读窗口属性，再向父级查找。
-    private func copyWindow(for element: AXUIElement) -> AXUIElement? {
-        if let window = copyWindowAttribute(from: element) {
-            return window
+    private func lookupWindow(at mousePosition: CGPoint) -> WindowLookupResult? {
+        guard prepareSystemWideElement(), let systemWideElement else {
+            return nil
+        }
+
+        var targetElement: AXUIElement?
+        let elementError = AXUIElementCopyElementAtPosition(
+            systemWideElement,
+            Float(mousePosition.x),
+            Float(mousePosition.y),
+            &targetElement
+        )
+
+        if elementError == .success, let targetElement {
+            return copyWindow(for: targetElement) ?? copyWindowFromCGWindow(at: mousePosition)
+        }
+
+        AppLog.accessibility.debug("Failed to get element at position: \(elementError.rawValue, privacy: .public)")
+        return copyWindowFromCGWindow(at: mousePosition)
+    }
+
+    // 从一个 AX 元素推导所属窗口：先读窗口属性，再向父级查找。
+    private func copyWindow(for element: AXUIElement) -> WindowLookupResult? {
+        if let result = copyWindowAttribute(from: element) {
+            return result
         }
 
         return copyWindowByWalkingParents(from: element)
     }
 
     // AX 点查找失败时，用 CGWindow 列表找鼠标下最前面的普通窗口。
-    private func copyWindowFromCGWindow(at point: CGPoint) -> AXUIElement? {
+    private func copyWindowFromCGWindow(at point: CGPoint) -> WindowLookupResult? {
         guard let windowInfoList = CGWindowListCopyWindowInfo(
             [.optionOnScreenOnly, .excludeDesktopElements],
             kCGNullWindowID
@@ -127,14 +165,14 @@ final class AXWindowController {
             }
 
             AppLog.accessibility.debug("Captured window through CG fallback for pid \(ownerProcessID, privacy: .public)")
-            return window
+            return WindowLookupResult(window: window, source: "CGWindow fallback", processID: ownerProcessID)
         }
 
         return nil
     }
 
     // 许多控件会直接提供 kAXWindowAttribute，这是最稳的窗口获取路径。
-    private func copyWindowAttribute(from element: AXUIElement) -> AXUIElement? {
+    private func copyWindowAttribute(from element: AXUIElement) -> WindowLookupResult? {
         var windowValue: CFTypeRef?
         let error = AXUIElementCopyAttributeValue(element, kAXWindowAttribute as CFString, &windowValue)
         guard error == .success else {
@@ -149,11 +187,11 @@ final class AXWindowController {
             return nil
         }
 
-        return window
+        return WindowLookupResult(window: window, source: "AX 窗口属性", processID: processID(for: window))
     }
 
     // 有些 App 不提供窗口属性，只能从当前元素一路向父级查找 AXWindow。
-    private func copyWindowByWalkingParents(from element: AXUIElement) -> AXUIElement? {
+    private func copyWindowByWalkingParents(from element: AXUIElement) -> WindowLookupResult? {
         var currentElement: AXUIElement? = element
 
         while let candidate = currentElement {
@@ -167,7 +205,7 @@ final class AXWindowController {
             }
 
             if role == (kAXWindowRole as String) {
-                return candidate
+                return WindowLookupResult(window: candidate, source: "AX 父级查找", processID: processID(for: candidate))
             }
 
             var parentValue: CFTypeRef?
@@ -361,5 +399,45 @@ final class AXWindowController {
         }
 
         return CGRect(dictionaryRepresentation: boundsDictionary)
+    }
+
+    // 判断某个 AX 属性是否可以写入；不可写通常意味着该窗口不支持移动或缩放。
+    private func isAttributeSettable(_ attribute: CFString, for element: AXUIElement) -> Bool {
+        var settable = DarwinBoolean(false)
+        let error = AXUIElementIsAttributeSettable(element, attribute, &settable)
+        return error == .success && settable.boolValue
+    }
+
+    // 读取 AX 元素所属进程 pid。
+    private func processID(for element: AXUIElement) -> pid_t? {
+        var processID = pid_t()
+        guard AXUIElementGetPid(element, &processID) == .success else {
+            return nil
+        }
+
+        return processID
+    }
+
+    // 把 pid 转成应用名称，读不到时给出兜底文案。
+    private func appName(for processID: pid_t?) -> String {
+        guard let processID,
+              let app = NSRunningApplication(processIdentifier: processID) else {
+            return "未知"
+        }
+
+        return app.localizedName ?? "未知"
+    }
+
+    // 把窗口 frame 转成菜单诊断里更好读的文本。
+    private func frameDescription(_ frame: CGRect) -> String {
+        let x = Int(frame.origin.x.rounded())
+        let y = Int(frame.origin.y.rounded())
+        let width = Int(frame.width.rounded())
+        let height = Int(frame.height.rounded())
+        return "x:\(x), y:\(y), w:\(width), h:\(height)"
+    }
+
+    private func yesNo(_ value: Bool) -> String {
+        value ? "是" : "否"
     }
 }
