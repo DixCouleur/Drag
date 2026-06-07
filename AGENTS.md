@@ -2,13 +2,14 @@
 
 ## Project Structure & Module Organization
 
-This repository contains a small macOS Objective-C app built with Xcode.
+This repository contains a small macOS Swift menu bar app built with Xcode.
 
 - `YunDrag.xcodeproj/` holds the Xcode project and shared schemes.
-- `src/` contains application source files: `main.m`, `AppDelegate.*`, and `utils.*`.
+- `src/` contains Swift source: lifecycle, menu UI, permission prompts, Accessibility window operations, modifier tracking, and geometry helpers.
 - `Assets.xcassets/` contains app icon resources and asset catalog metadata.
+- `README.md` and `README.zh-CN.md` provide English and Simplified Chinese project introductions.
 
-Keep app behavior in `AppDelegate` unless a helper is reusable across files; place reusable Accessibility or geometry helpers in `utils.*`.
+Keep module boundaries narrow. Put new menu actions in `StatusMenuController`, Accessibility API work in `AXWindowController`, and lifecycle coordination in `AppDelegate`.
 
 ## Build, Test, and Development Commands
 
@@ -19,21 +20,21 @@ Use the local `rtk` wrapper for shell commands.
 - `rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release build` builds the Release app.
 - `rtk xcodebuild -project YunDrag.xcodeproj -scheme debug clean` removes Xcode build products for the debug scheme.
 
-There is no app runner script in this checkout. Launch from Xcode or from the built `.app` bundle.
+Launch from Xcode or the built `.app` bundle.
 
 ## Coding Style & Naming Conventions
 
-Use Objective-C conventions already present in `src/`: 4-space indentation, braces on method or function declaration lines, descriptive Cocoa-style method names, and lower camelCase for properties and helper functions. Keep comments short and useful; existing source comments are mostly Chinese, so prefer Chinese for nearby explanatory comments unless the surrounding file moves to English.
+Use Swift 6 with 4-space indentation, lower camelCase for methods and properties, and UpperCamelCase for types. Prefer `final` classes for concrete controllers. Keep AppKit-facing controllers `@MainActor`.
 
-Manage Core Foundation objects explicitly. Release copied or created values with `CFRelease` after use, and check `AXError` return values before using Accessibility API results.
+For Accessibility and Core Foundation APIs, check `AXError` before using returned values and compare `CFTypeID` before casting opaque AX objects. Keep comments short and focused on non-obvious AX or threading behavior.
 
 ## Testing Guidelines
 
-No XCTest target or test directory is currently present. For changes to window movement, resizing, or Accessibility behavior, verify manually on macOS with Accessibility permission enabled for the app. When adding tests, create an XCTest target in `YunDrag.xcodeproj`, name test files `*Tests.m`, and document the new `xcodebuild test` command here.
+No XCTest target exists. For movement, resizing, or permission changes, verify manually on macOS with Accessibility permission enabled. When adding tests, create an XCTest target, name files `*Tests.swift`, and document the `rtk xcodebuild test` command here.
 
 ## Commit & Pull Request Guidelines
 
-This checkout does not include `.git` metadata, so no local commit message pattern can be inferred. Use concise, imperative commit subjects such as `Fix resize offset handling` or `Update app icon assets`.
+Existing commits use concise imperative subjects such as `Improve accessibility permission guidance` and `Split app delegate responsibilities`. Follow that style and keep each commit focused.
 
 Pull requests should include a short behavior summary, manual verification steps, and screenshots or screen recordings for menu bar, permission prompt, or visible interaction changes. Link related issues when available.
 
