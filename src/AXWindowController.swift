@@ -49,7 +49,33 @@ final class AXWindowController {
         let processID: pid_t?
     }
 
+    private enum HorizontalStickyEdge {
+        case left
+        case right
+    }
+
+    private enum VerticalStickyEdge {
+        case top
+        case bottom
+    }
+
+    private struct EdgeStickinessState {
+        var horizontalEdge: HorizontalStickyEdge?
+        var horizontalPressure: CGFloat = 0
+        var verticalEdge: VerticalStickyEdge?
+        var verticalPressure: CGFloat = 0
+
+        mutating func reset() {
+            horizontalEdge = nil
+            horizontalPressure = 0
+            verticalEdge = nil
+            verticalPressure = 0
+        }
+    }
+
     private static let fallbackMaximumFramesPerSecond = 144.0
+    private static let edgeStickActivationDistance: CGFloat = 12.0
+    private static let edgeStickReleaseDistance: CGFloat = 24.0
 
     private var windowWriteInterval = 1.0 / Double(fallbackMaximumFramesPerSecond)
     private var systemWideElement: AXUIElement?
@@ -63,6 +89,7 @@ final class AXWindowController {
     private var pendingWindowPosition: CGPoint?
     private var windowWriteTimer: Timer?
     private var lastWindowWriteTime: TimeInterval = 0
+    private var edgeStickinessState = EdgeStickinessState()
     private var loggedFailureKeys = Set<String>()
 
     // ModifierMonitor 用它判断当前是否已经捕获到可操作窗口。
@@ -144,7 +171,7 @@ final class AXWindowController {
             return
         }
 
-        windowPosition = windowPosition + offset
+        windowPosition = adjustedWindowPosition(from: windowPosition, offset: offset)
         pendingWindowPosition = windowPosition
         scheduleWindowWrite()
     }
@@ -169,6 +196,7 @@ final class AXWindowController {
         canMoveTargetWindow = false
         canResizeTargetWindow = false
         lastWindowWriteTime = 0
+        edgeStickinessState.reset()
     }
 
     // 应用退出或权限状态变化时，清理缓存的 AX 对象。
@@ -339,6 +367,8 @@ final class AXWindowController {
                 return false
             }
             windowPosition = position
+            windowSize = copySizeAttribute(kAXSizeAttribute as CFString, from: targetWindow) ?? .zero
+            edgeStickinessState.reset()
             return true
 
         case .resize:
@@ -349,8 +379,211 @@ final class AXWindowController {
                 return false
             }
             windowSize = size
+            edgeStickinessState.reset()
             return true
         }
+    }
+
+    // 模拟系统拖动窗口贴近屏幕边缘时的短暂停顿。
+    private func adjustedWindowPosition(from currentPosition: CGPoint, offset: CGPoint) -> CGPoint {
+        let proposedPosition = currentPosition + offset
+        guard windowSize.width > 0,
+              windowSize.height > 0,
+              let screenFrame = visibleScreenFrame(for: CGRect(origin: proposedPosition, size: windowSize)) else {
+            edgeStickinessState.reset()
+            return proposedPosition
+        }
+
+        var adjustedPosition = proposedPosition
+        adjustedPosition.x = adjustedHorizontalPosition(
+            currentX: currentPosition.x,
+            proposedX: proposedPosition.x,
+            offsetX: offset.x,
+            windowWidth: windowSize.width,
+            screenFrame: screenFrame
+        )
+        adjustedPosition.y = adjustedVerticalPosition(
+            currentY: currentPosition.y,
+            proposedY: proposedPosition.y,
+            offsetY: offset.y,
+            windowHeight: windowSize.height,
+            screenFrame: screenFrame
+        )
+        return adjustedPosition
+    }
+
+    private func adjustedHorizontalPosition(
+        currentX: CGFloat,
+        proposedX: CGFloat,
+        offsetX: CGFloat,
+        windowWidth: CGFloat,
+        screenFrame: CGRect
+    ) -> CGFloat {
+        let leftX = screenFrame.minX
+        let rightX = screenFrame.maxX - windowWidth
+
+        if let edge = edgeStickinessState.horizontalEdge {
+            let anchorX = edge == .left ? leftX : rightX
+            let movingTowardEdge = edge == .left ? offsetX < 0 : offsetX > 0
+
+            guard movingTowardEdge else {
+                edgeStickinessState.horizontalEdge = nil
+                edgeStickinessState.horizontalPressure = 0
+                return proposedX
+            }
+
+            edgeStickinessState.horizontalPressure += abs(offsetX)
+            guard edgeStickinessState.horizontalPressure > Self.edgeStickReleaseDistance else {
+                return anchorX
+            }
+
+            let releasedDistance = edgeStickinessState.horizontalPressure - Self.edgeStickReleaseDistance
+            edgeStickinessState.horizontalEdge = nil
+            edgeStickinessState.horizontalPressure = 0
+            return edge == .left ? anchorX - releasedDistance : anchorX + releasedDistance
+        }
+
+        if shouldStickToMinimumEdge(current: currentX, proposed: proposedX, edge: leftX, offset: offsetX) {
+            let pressure = max(leftX - proposedX, 0)
+            if pressure > Self.edgeStickReleaseDistance {
+                return leftX - (pressure - Self.edgeStickReleaseDistance)
+            }
+
+            edgeStickinessState.horizontalEdge = .left
+            edgeStickinessState.horizontalPressure = pressure
+            return leftX
+        }
+
+        if shouldStickToMaximumEdge(current: currentX, proposed: proposedX, edge: rightX, offset: offsetX) {
+            let pressure = max(proposedX - rightX, 0)
+            if pressure > Self.edgeStickReleaseDistance {
+                return rightX + (pressure - Self.edgeStickReleaseDistance)
+            }
+
+            edgeStickinessState.horizontalEdge = .right
+            edgeStickinessState.horizontalPressure = pressure
+            return rightX
+        }
+
+        return proposedX
+    }
+
+    private func adjustedVerticalPosition(
+        currentY: CGFloat,
+        proposedY: CGFloat,
+        offsetY: CGFloat,
+        windowHeight: CGFloat,
+        screenFrame: CGRect
+    ) -> CGFloat {
+        let topY = screenFrame.minY
+        let bottomY = screenFrame.maxY - windowHeight
+
+        if let edge = edgeStickinessState.verticalEdge {
+            let anchorY = edge == .top ? topY : bottomY
+            let movingTowardEdge = edge == .top ? offsetY < 0 : offsetY > 0
+
+            guard movingTowardEdge else {
+                edgeStickinessState.verticalEdge = nil
+                edgeStickinessState.verticalPressure = 0
+                return proposedY
+            }
+
+            edgeStickinessState.verticalPressure += abs(offsetY)
+            guard edgeStickinessState.verticalPressure > Self.edgeStickReleaseDistance else {
+                return anchorY
+            }
+
+            let releasedDistance = edgeStickinessState.verticalPressure - Self.edgeStickReleaseDistance
+            edgeStickinessState.verticalEdge = nil
+            edgeStickinessState.verticalPressure = 0
+            return edge == .top ? anchorY - releasedDistance : anchorY + releasedDistance
+        }
+
+        if shouldStickToMinimumEdge(current: currentY, proposed: proposedY, edge: topY, offset: offsetY) {
+            let pressure = max(topY - proposedY, 0)
+            if pressure > Self.edgeStickReleaseDistance {
+                return topY - (pressure - Self.edgeStickReleaseDistance)
+            }
+
+            edgeStickinessState.verticalEdge = .top
+            edgeStickinessState.verticalPressure = pressure
+            return topY
+        }
+
+        if shouldStickToMaximumEdge(current: currentY, proposed: proposedY, edge: bottomY, offset: offsetY) {
+            let pressure = max(proposedY - bottomY, 0)
+            if pressure > Self.edgeStickReleaseDistance {
+                return bottomY + (pressure - Self.edgeStickReleaseDistance)
+            }
+
+            edgeStickinessState.verticalEdge = .bottom
+            edgeStickinessState.verticalPressure = pressure
+            return bottomY
+        }
+
+        return proposedY
+    }
+
+    private func shouldStickToMinimumEdge(current: CGFloat, proposed: CGFloat, edge: CGFloat, offset: CGFloat) -> Bool {
+        guard offset < 0 else {
+            return false
+        }
+
+        let currentDistance = current - edge
+        let proposedDistance = proposed - edge
+        return currentDistance >= 0 && proposedDistance <= Self.edgeStickActivationDistance
+    }
+
+    private func shouldStickToMaximumEdge(current: CGFloat, proposed: CGFloat, edge: CGFloat, offset: CGFloat) -> Bool {
+        guard offset > 0 else {
+            return false
+        }
+
+        let currentDistance = edge - current
+        let proposedDistance = edge - proposed
+        return currentDistance >= 0 && proposedDistance <= Self.edgeStickActivationDistance
+    }
+
+    private func visibleScreenFrame(for windowFrame: CGRect) -> CGRect? {
+        let screenFrames = screenVisibleFramesInAccessibilityCoordinates()
+        guard !screenFrames.isEmpty else {
+            return nil
+        }
+
+        let windowCenter = CGPoint(x: windowFrame.midX, y: windowFrame.midY)
+        if let containingFrame = screenFrames.first(where: { $0.contains(windowCenter) }) {
+            return containingFrame
+        }
+
+        return screenFrames.max { lhs, rhs in
+            intersectionArea(lhs, windowFrame) < intersectionArea(rhs, windowFrame)
+        }
+    }
+
+    private func screenVisibleFramesInAccessibilityCoordinates() -> [CGRect] {
+        guard let primaryScreenFrame = NSScreen.screens.first?.frame else {
+            return []
+        }
+
+        let primaryScreenMaxY = primaryScreenFrame.maxY
+        return NSScreen.screens.map { screen in
+            let frame = screen.visibleFrame
+            return CGRect(
+                x: frame.minX,
+                y: primaryScreenMaxY - frame.maxY,
+                width: frame.width,
+                height: frame.height
+            )
+        }
+    }
+
+    private func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
+        let intersection = lhs.intersection(rhs)
+        guard !intersection.isNull else {
+            return 0
+        }
+
+        return max(intersection.width, 0) * max(intersection.height, 0)
     }
 
     // 把多次鼠标采样产生的窗口更新合并到屏幕最高刷新率，避免过量 AX 写入。
