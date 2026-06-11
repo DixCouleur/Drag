@@ -20,7 +20,6 @@ concurrency:
 env:
   APP_NAME: YunDrag
   CONFIGURATION: Release
-  DERIVED_DATA_PATH: ${{ runner.temp }}/YunDragDerivedData
   PROJECT: YunDrag.xcodeproj
   SCHEME: release
 
@@ -28,6 +27,8 @@ jobs:
   build:
     name: Build macOS app
     runs-on: macos-latest
+    env:
+      DERIVED_DATA_PATH: ${{ runner.temp }}/YunDragDerivedData
 
     steps:
       - name: Check out repository
