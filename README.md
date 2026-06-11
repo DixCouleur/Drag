@@ -37,6 +37,17 @@ Build Release:
 rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release build
 ```
 
+## GitHub Actions Release
+
+The repository includes a GitHub Actions workflow that builds the Release app on push, pull request, and manual dispatch. Push a version tag to create or update a GitHub Release with an unsigned macOS zip:
+
+```sh
+git tag v1.7.0
+git push origin v1.7.0
+```
+
+The generated artifact is unsigned and not notarized. For public distribution, sign and notarize the app before shipping it to end users.
+
 ## Usage
 
 Launch `YunDrag.app`, then grant Accessibility permission when prompted. If permission is not active yet, open the menu bar item and choose `打开辅助功能设置`; after enabling YunDrag in System Settings, the app detects the permission and enables shortcuts automatically.

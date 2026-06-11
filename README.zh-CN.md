@@ -37,6 +37,17 @@ rtk xcodebuild -project YunDrag.xcodeproj -scheme debug -configuration Debug bui
 rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release build
 ```
 
+## GitHub Actions Release
+
+仓库已包含 GitHub Actions workflow，会在 push、pull request 和手动触发时构建 Release app。推送版本 tag 后，会创建或更新 GitHub Release，并上传未签名的 macOS zip：
+
+```sh
+git tag v1.7.0
+git push origin v1.7.0
+```
+
+生成的 artifact 未签名、未公证。面向公开分发前，建议先对 app 进行签名和公证。
+
 ## 使用方法
 
 启动 `YunDrag.app` 后，按提示授予辅助功能权限。如果权限尚未生效，可以点击菜单栏图标，选择 `打开辅助功能设置`；在系统设置中启用 YunDrag 后，应用会自动检测权限并启用快捷键。
