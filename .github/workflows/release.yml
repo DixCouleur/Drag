@@ -27,8 +27,6 @@ jobs:
   build:
     name: Build macOS app
     runs-on: macos-latest
-    env:
-      DERIVED_DATA_PATH: ${{ runner.temp }}/YunDragDerivedData
 
     steps:
       - name: Check out repository
@@ -41,12 +39,14 @@ jobs:
 
       - name: Build Release app
         run: |
+          derived_data_path="$RUNNER_TEMP/YunDragDerivedData"
+
           xcodebuild \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration "$CONFIGURATION" \
             -destination "generic/platform=macOS" \
-            -derivedDataPath "$DERIVED_DATA_PATH" \
+            -derivedDataPath "$derived_data_path" \
             CODE_SIGNING_ALLOWED=NO \
             build
 
@@ -54,7 +54,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          products_dir="$DERIVED_DATA_PATH/Build/Products/$CONFIGURATION"
+          derived_data_path="$RUNNER_TEMP/YunDragDerivedData"
+          products_dir="$derived_data_path/Build/Products/$CONFIGURATION"
           app_path="$products_dir/$APP_NAME.app"
 
           if [ ! -d "$app_path" ]; then
