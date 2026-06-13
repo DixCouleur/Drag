@@ -24,12 +24,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         configureSystemStateObservers()
         statusMenuController.show()
 
-        if permissionGuide.isTrusted(prompt: true) {
-            enableAccessibilityFeatures()
-        } else {
-            statusMenuController.updatePermissionStatus(false)
+        if !refreshAccessibilityState(prompt: true, showsPermissionGuide: true, showsUnavailableMessage: true) {
             startPermissionPolling()
-            showAccessibilityPermissionGuide()
         }
     }
 
@@ -69,7 +65,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         stopPermissionPolling()
         permissionGuide.dismissActivePrompt()
         accessibilityFeaturesEnabled = true
-        statusMenuController.updatePermissionStatus(true)
+        statusMenuController.updatePermissionStatus(suspendedForSystemState ? .paused : .authorized)
 
         guard !suspendedForSystemState else {
             return
@@ -79,32 +75,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // 权限失效或退出时统一停掉监听和缓存。
-    private func disableAccessibilityFeatures(updateMenu: Bool) {
+    private func disableAccessibilityFeatures(permissionStatus: AccessibilityPermissionStatus?) {
         accessibilityFeaturesEnabled = false
         modifierMonitor.stop()
         windowController.reset()
 
-        if updateMenu {
-            statusMenuController.updatePermissionStatus(false)
+        if let permissionStatus {
+            statusMenuController.updatePermissionStatus(permissionStatus)
         }
     }
 
     // 用户手动点击“检查权限”时，重新读取系统授权状态。
     private func checkAccessibilityPermissionFromMenu() {
-        guard permissionGuide.isTrusted(prompt: false) else {
-            disableAccessibilityFeatures(updateMenu: true)
-            showAccessibilityPermissionGuide()
-            return
-        }
-
-        enableAccessibilityFeatures()
+        statusMenuController.updatePermissionStatus(.checking)
+        refreshAccessibilityState(prompt: false, showsPermissionGuide: true, showsUnavailableMessage: true)
     }
 
     // 从菜单触发一次窗口诊断，帮助判断当前 App 为什么不能移动或缩放。
     private func diagnoseCurrentWindow() {
-        guard permissionGuide.isTrusted(prompt: false) else {
-            disableAccessibilityFeatures(updateMenu: true)
+        switch permissionGuide.readiness(prompt: false) {
+        case .ready:
+            enableAccessibilityFeatures()
+        case .notAuthorized:
+            disableAccessibilityFeatures(permissionStatus: .notAuthorized)
             showMessage(title: "当前窗口诊断", message: "尚未授予辅助功能权限，无法读取当前窗口。请先打开辅助功能设置并启用 YunDrag。")
+            return
+        case .unavailable(let reason):
+            disableAccessibilityFeatures(permissionStatus: .unavailable)
+            showMessage(title: "当前窗口诊断", message: "辅助功能权限已授权，但当前 AX 读取不可用。\n\n\(reason)")
             return
         }
 
@@ -142,9 +140,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 真正弹出权限说明；启动或菜单 action 中都不要直接同步调用它。
     private func presentAccessibilityPermissionGuide() {
-        guard !permissionGuide.isTrusted(prompt: false) else {
+        switch permissionGuide.readiness(prompt: false) {
+        case .ready:
             enableAccessibilityFeatures()
             return
+        case .unavailable(let reason):
+            disableAccessibilityFeatures(permissionStatus: .unavailable)
+            showMessage(title: "辅助功能不可用", message: "系统显示已授权，但当前 AX 读取不可用。\n\n\(reason)")
+            return
+        case .notAuthorized:
+            break
         }
 
         permissionGuide.show(
@@ -156,14 +161,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             }
         )
 
-        if permissionGuide.isTrusted(prompt: false) {
-            enableAccessibilityFeatures()
-        }
+        refreshAccessibilityState(prompt: false, showsPermissionGuide: false, showsUnavailableMessage: false)
     }
 
     // 打开系统设置后开始轮询，这样用户授权后不用再回菜单手动检查。
     private func openAccessibilitySettings() {
         permissionGuide.openSettings()
+        statusMenuController.updatePermissionStatus(.checking)
         startPermissionPolling()
     }
 
@@ -230,7 +234,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         workspaceObservers.removeAll()
     }
 
-    // 暂停时不改变权限菜单，只停止全局监听和 AX 缓存。
+    // 暂停时停止全局监听和 AX 缓存，并把菜单状态切到已暂停。
     private func suspendAccessibilityFeaturesForSystemState() {
         guard accessibilityFeaturesEnabled, !suspendedForSystemState else {
             return
@@ -239,6 +243,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         suspendedForSystemState = true
         modifierMonitor.stop()
         windowController.reset()
+        statusMenuController.updatePermissionStatus(.paused)
         AppLog.app.info("Suspended accessibility features for system state")
     }
 
@@ -253,14 +258,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard permissionGuide.isTrusted(prompt: false) else {
-            disableAccessibilityFeatures(updateMenu: true)
-            AppLog.accessibility.info("Accessibility permission is no longer trusted after system resume")
-            return
+        if refreshAccessibilityState(prompt: false, showsPermissionGuide: false, showsUnavailableMessage: false) {
+            AppLog.app.info("Resumed accessibility features after system state change")
         }
-
-        modifierMonitor.start()
-        AppLog.app.info("Resumed accessibility features after system state change")
     }
 
     // 定时检查辅助功能授权是否已经生效。
@@ -273,20 +273,43 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        guard permissionGuide.isTrusted(prompt: false) else {
-            statusMenuController.updatePermissionStatus(false)
+        guard refreshAccessibilityState(prompt: false, showsPermissionGuide: false, showsUnavailableMessage: false) else {
             return
         }
 
         AppLog.accessibility.info("Accessibility permission became trusted")
-        enableAccessibilityFeatures()
     }
 
     // 菜单中的退出入口会先清理内部状态，再终止应用。
     private func exit() {
         stopPermissionPolling()
-        disableAccessibilityFeatures(updateMenu: false)
+        disableAccessibilityFeatures(permissionStatus: nil)
         statusMenuController.cancelTracking()
         NSApp.terminate(nil)
+    }
+
+    @discardableResult
+    private func refreshAccessibilityState(
+        prompt: Bool,
+        showsPermissionGuide: Bool,
+        showsUnavailableMessage: Bool
+    ) -> Bool {
+        switch permissionGuide.readiness(prompt: prompt) {
+        case .ready:
+            enableAccessibilityFeatures()
+            return true
+        case .notAuthorized:
+            disableAccessibilityFeatures(permissionStatus: .notAuthorized)
+            if showsPermissionGuide {
+                showAccessibilityPermissionGuide()
+            }
+            return false
+        case .unavailable(let reason):
+            disableAccessibilityFeatures(permissionStatus: .unavailable)
+            if showsUnavailableMessage {
+                showMessage(title: "辅助功能不可用", message: "系统显示已授权，但当前 AX 读取不可用。\n\n\(reason)")
+            }
+            return false
+        }
     }
 }
