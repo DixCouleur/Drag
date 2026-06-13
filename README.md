@@ -39,14 +39,14 @@ rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release
 
 ## GitHub Actions Release
 
-The repository includes a GitHub Actions workflow that builds the Release app on push, pull request, and manual dispatch. Push a version tag to create or update a GitHub Release with an unsigned macOS zip:
+The repository includes a GitHub Actions workflow that builds the Release app on push, pull request, and manual dispatch. Push a version tag to create or update a GitHub Release with a macOS DMG:
 
 ```sh
-git tag v1.7.0
-git push origin v1.7.0
+git tag v1.8.0
+git push origin v1.8.0
 ```
 
-The generated artifact is unsigned and not notarized. For public distribution, sign and notarize the app before shipping it to end users.
+Open the generated DMG and drag `YunDrag.app` into the `Applications` shortcut. The app inside the DMG is unsigned and not notarized. For public distribution, sign and notarize the app before shipping it to end users.
 
 ## Usage
 
