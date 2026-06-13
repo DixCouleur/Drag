@@ -9,6 +9,8 @@ import ApplicationServices
 // 封装辅助功能权限检查、系统设置跳转和权限提示弹窗。
 @MainActor
 final class AccessibilityPermissionGuide {
+    private weak var activeAlertWindow: NSWindow?
+
     // 读取系统辅助功能授权状态；prompt 为 true 时系统可能弹出授权提示。
     func isTrusted(prompt: Bool) -> Bool {
         let options = ["AXTrustedCheckOptionPrompt": prompt] as CFDictionary
@@ -36,6 +38,13 @@ final class AccessibilityPermissionGuide {
         alert.addButton(withTitle: "稍后")
         alert.addButton(withTitle: "退出")
 
+        activeAlertWindow = alert.window
+        defer {
+            if activeAlertWindow === alert.window {
+                activeAlertWindow = nil
+            }
+        }
+
         switch alert.runModal() {
         case .alertFirstButtonReturn:
             openSettingsHandler()
@@ -44,5 +53,16 @@ final class AccessibilityPermissionGuide {
         default:
             break
         }
+    }
+
+    // 授权在弹窗显示期间生效时，关闭旧提示避免继续显示“需要权限”。
+    func dismissActivePrompt() {
+        guard let activeAlertWindow else {
+            return
+        }
+
+        NSApp.stopModal(withCode: .alertSecondButtonReturn)
+        activeAlertWindow.close()
+        self.activeAlertWindow = nil
     }
 }

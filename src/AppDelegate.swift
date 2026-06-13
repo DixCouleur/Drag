@@ -28,6 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             enableAccessibilityFeatures()
         } else {
             statusMenuController.updatePermissionStatus(false)
+            startPermissionPolling()
             showAccessibilityPermissionGuide()
         }
     }
@@ -66,6 +67,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     // 权限可用后更新菜单状态并启动全局快捷键监听。
     private func enableAccessibilityFeatures() {
         stopPermissionPolling()
+        permissionGuide.dismissActivePrompt()
         accessibilityFeaturesEnabled = true
         statusMenuController.updatePermissionStatus(true)
 
@@ -140,6 +142,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 真正弹出权限说明；启动或菜单 action 中都不要直接同步调用它。
     private func presentAccessibilityPermissionGuide() {
+        guard !permissionGuide.isTrusted(prompt: false) else {
+            enableAccessibilityFeatures()
+            return
+        }
+
         permissionGuide.show(
             openSettingsHandler: { [weak self] in
                 self?.openAccessibilitySettings()
@@ -148,6 +155,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 self?.exit()
             }
         )
+
+        if permissionGuide.isTrusted(prompt: false) {
+            enableAccessibilityFeatures()
+        }
     }
 
     // 打开系统设置后开始轮询，这样用户授权后不用再回菜单手动检查。
@@ -157,6 +168,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // 最多轮询两分钟；授权成功会自动停止。
+    // 启动时也会轮询，覆盖用户从系统授权提示直接进入设置的路径。
     private func startPermissionPolling() {
         stopPermissionPolling()
         permissionPollingAttempts = 0
