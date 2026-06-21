@@ -69,10 +69,17 @@ jobs:
           fi
 
           certificate_path="$RUNNER_TEMP/yundrag-codesign.p12"
+          certificate_pem_path="$RUNNER_TEMP/yundrag-codesign.crt"
           keychain_path="$RUNNER_TEMP/yundrag-codesign.keychain-db"
           keychain_password="$(openssl rand -base64 32)"
 
           printf '%s' "$MACOS_CODESIGN_CERTIFICATE_BASE64" | base64 -D > "$certificate_path"
+          openssl pkcs12 \
+            -in "$certificate_path" \
+            -nokeys \
+            -clcerts \
+            -passin "pass:$MACOS_CODESIGN_CERTIFICATE_PASSWORD" \
+            -out "$certificate_pem_path"
 
           security create-keychain -p "$keychain_password" "$keychain_path"
           security set-keychain-settings -lut 21600 "$keychain_path"
@@ -88,6 +95,11 @@ jobs:
             -s \
             -k "$keychain_password" \
             "$keychain_path"
+          security add-trusted-cert \
+            -r trustRoot \
+            -p codeSign \
+            -k "$keychain_path" \
+            "$certificate_pem_path"
 
           security find-identity -v -p codesigning "$keychain_path"
 
