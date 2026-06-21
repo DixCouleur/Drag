@@ -74,7 +74,6 @@ final class AXWindowController {
     }
 
     private static let fallbackMaximumFramesPerSecond = 144.0
-    private static let edgeStickActivationDistance: CGFloat = 12.0
     private static let edgeStickReleaseDistance: CGFloat = 24.0
 
     private var windowWriteInterval = 1.0 / Double(fallbackMaximumFramesPerSecond)
@@ -384,7 +383,7 @@ final class AXWindowController {
         }
     }
 
-    // 模拟系统拖动窗口贴近屏幕边缘时的短暂停顿。
+    // 模拟系统拖动窗口越过屏幕边缘时的短暂停顿。
     private func adjustedWindowPosition(from currentPosition: CGPoint, offset: CGPoint) -> CGPoint {
         let proposedPosition = currentPosition + offset
         guard windowSize.width > 0,
@@ -531,7 +530,7 @@ final class AXWindowController {
 
         let currentDistance = current - edge
         let proposedDistance = proposed - edge
-        return currentDistance >= 0 && proposedDistance <= Self.edgeStickActivationDistance
+        return currentDistance >= 0 && proposedDistance <= 0
     }
 
     private func shouldStickToMaximumEdge(current: CGFloat, proposed: CGFloat, edge: CGFloat, offset: CGFloat) -> Bool {
@@ -541,7 +540,7 @@ final class AXWindowController {
 
         let currentDistance = edge - current
         let proposedDistance = edge - proposed
-        return currentDistance >= 0 && proposedDistance <= Self.edgeStickActivationDistance
+        return currentDistance >= 0 && proposedDistance <= 0
     }
 
     private func visibleScreenFrame(for windowFrame: CGRect) -> CGRect? {
