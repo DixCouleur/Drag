@@ -97,14 +97,19 @@ final class AccessibilityPermissionGuide {
             &focusedApplicationValue
         )
 
+        if error == .noValue {
+            lastReadinessFailureMessage = nil
+            return .ready
+        }
+
         guard error == .success else {
             let message = "AX 读取焦点应用失败: \(error.rawValue)"
             return unavailableReadiness(message)
         }
 
         guard let focusedApplicationValue else {
-            let message = "AX 焦点应用为空"
-            return unavailableReadiness(message)
+            lastReadinessFailureMessage = nil
+            return .ready
         }
 
         guard CFGetTypeID(focusedApplicationValue) == AXUIElementGetTypeID() else {
