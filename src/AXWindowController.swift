@@ -61,20 +61,36 @@ final class AXWindowController {
 
     private struct EdgeStickinessState {
         var horizontalEdge: HorizontalStickyEdge?
+        var horizontalAnchor: CGFloat?
         var horizontalPressure: CGFloat = 0
         var verticalEdge: VerticalStickyEdge?
+        var verticalAnchor: CGFloat?
         var verticalPressure: CGFloat = 0
 
         mutating func reset() {
             horizontalEdge = nil
+            horizontalAnchor = nil
             horizontalPressure = 0
             verticalEdge = nil
+            verticalAnchor = nil
             verticalPressure = 0
         }
     }
 
+    private struct ScreenEdgeFrame {
+        let visible: CGRect
+        let full: CGRect
+    }
+
+    private struct EdgeResistanceResult {
+        let position: CGFloat
+        let anchor: CGFloat
+        let pressure: CGFloat
+    }
+
     private static let fallbackMaximumFramesPerSecond = 144.0
-    private static let edgeStickReleaseDistance: CGFloat = 24.0
+    private static let edgeStickHoldDistance: CGFloat = 10.0
+    private static let edgeStickResistanceDistance: CGFloat = 72.0
 
     private var windowWriteInterval = 1.0 / Double(fallbackMaximumFramesPerSecond)
     private var systemWideElement: AXUIElement?
@@ -388,7 +404,7 @@ final class AXWindowController {
         let proposedPosition = currentPosition + offset
         guard windowSize.width > 0,
               windowSize.height > 0,
-              let screenFrame = visibleScreenFrame(for: CGRect(origin: proposedPosition, size: windowSize)) else {
+              let screenFrame = screenEdgeFrame(for: CGRect(origin: proposedPosition, size: windowSize)) else {
             edgeStickinessState.reset()
             return proposedPosition
         }
@@ -416,52 +432,52 @@ final class AXWindowController {
         proposedX: CGFloat,
         offsetX: CGFloat,
         windowWidth: CGFloat,
-        screenFrame: CGRect
+        screenFrame: ScreenEdgeFrame
     ) -> CGFloat {
-        let leftX = screenFrame.minX
-        let rightX = screenFrame.maxX - windowWidth
+        let leftEdges = edgePositions(screenFrame.visible.minX, screenFrame.full.minX)
+        let rightEdges = edgePositions(
+            screenFrame.visible.maxX - windowWidth,
+            screenFrame.full.maxX - windowWidth
+        )
 
-        if let edge = edgeStickinessState.horizontalEdge {
-            let anchorX = edge == .left ? leftX : rightX
+        if let edge = edgeStickinessState.horizontalEdge,
+           let anchorX = edgeStickinessState.horizontalAnchor {
             let movingTowardEdge = edge == .left ? offsetX < 0 : offsetX > 0
 
             guard movingTowardEdge else {
                 edgeStickinessState.horizontalEdge = nil
+                edgeStickinessState.horizontalAnchor = nil
                 edgeStickinessState.horizontalPressure = 0
                 return proposedX
             }
 
-            edgeStickinessState.horizontalPressure += abs(offsetX)
-            guard edgeStickinessState.horizontalPressure > Self.edgeStickReleaseDistance else {
-                return anchorX
-            }
-
-            let releasedDistance = edgeStickinessState.horizontalPressure - Self.edgeStickReleaseDistance
-            edgeStickinessState.horizontalEdge = nil
-            edgeStickinessState.horizontalPressure = 0
-            return edge == .left ? anchorX - releasedDistance : anchorX + releasedDistance
+            let pressure = edgeStickinessState.horizontalPressure + abs(offsetX)
+            let result = edge == .left
+                ? resistedMinimumPosition(anchor: anchorX, proposed: proposedX, pressure: pressure, edges: leftEdges)
+                : resistedMaximumPosition(anchor: anchorX, proposed: proposedX, pressure: pressure, edges: rightEdges)
+            edgeStickinessState.horizontalAnchor = result.anchor
+            edgeStickinessState.horizontalPressure = result.pressure
+            return result.position
         }
 
-        if shouldStickToMinimumEdge(current: currentX, proposed: proposedX, edge: leftX, offset: offsetX) {
+        if let leftX = crossedMinimumEdge(current: currentX, proposed: proposedX, offset: offsetX, edges: leftEdges) {
             let pressure = max(leftX - proposedX, 0)
-            if pressure > Self.edgeStickReleaseDistance {
-                return leftX - (pressure - Self.edgeStickReleaseDistance)
-            }
+            let result = resistedMinimumPosition(anchor: leftX, proposed: proposedX, pressure: pressure, edges: leftEdges)
 
             edgeStickinessState.horizontalEdge = .left
-            edgeStickinessState.horizontalPressure = pressure
-            return leftX
+            edgeStickinessState.horizontalAnchor = result.anchor
+            edgeStickinessState.horizontalPressure = result.pressure
+            return result.position
         }
 
-        if shouldStickToMaximumEdge(current: currentX, proposed: proposedX, edge: rightX, offset: offsetX) {
+        if let rightX = crossedMaximumEdge(current: currentX, proposed: proposedX, offset: offsetX, edges: rightEdges) {
             let pressure = max(proposedX - rightX, 0)
-            if pressure > Self.edgeStickReleaseDistance {
-                return rightX + (pressure - Self.edgeStickReleaseDistance)
-            }
+            let result = resistedMaximumPosition(anchor: rightX, proposed: proposedX, pressure: pressure, edges: rightEdges)
 
             edgeStickinessState.horizontalEdge = .right
-            edgeStickinessState.horizontalPressure = pressure
-            return rightX
+            edgeStickinessState.horizontalAnchor = result.anchor
+            edgeStickinessState.horizontalPressure = result.pressure
+            return result.position
         }
 
         return proposedX
@@ -472,110 +488,188 @@ final class AXWindowController {
         proposedY: CGFloat,
         offsetY: CGFloat,
         windowHeight: CGFloat,
-        screenFrame: CGRect
+        screenFrame: ScreenEdgeFrame
     ) -> CGFloat {
-        let topY = screenFrame.minY
-        let bottomY = screenFrame.maxY - windowHeight
+        let topEdges = edgePositions(screenFrame.visible.minY, screenFrame.full.minY)
+        let bottomEdges = edgePositions(
+            screenFrame.visible.maxY - windowHeight,
+            screenFrame.full.maxY - windowHeight
+        )
 
-        if let edge = edgeStickinessState.verticalEdge {
-            let anchorY = edge == .top ? topY : bottomY
+        if let edge = edgeStickinessState.verticalEdge,
+           let anchorY = edgeStickinessState.verticalAnchor {
             let movingTowardEdge = edge == .top ? offsetY < 0 : offsetY > 0
 
             guard movingTowardEdge else {
                 edgeStickinessState.verticalEdge = nil
+                edgeStickinessState.verticalAnchor = nil
                 edgeStickinessState.verticalPressure = 0
                 return proposedY
             }
 
-            edgeStickinessState.verticalPressure += abs(offsetY)
-            guard edgeStickinessState.verticalPressure > Self.edgeStickReleaseDistance else {
-                return anchorY
-            }
-
-            let releasedDistance = edgeStickinessState.verticalPressure - Self.edgeStickReleaseDistance
-            edgeStickinessState.verticalEdge = nil
-            edgeStickinessState.verticalPressure = 0
-            return edge == .top ? anchorY - releasedDistance : anchorY + releasedDistance
+            let pressure = edgeStickinessState.verticalPressure + abs(offsetY)
+            let result = edge == .top
+                ? resistedMinimumPosition(anchor: anchorY, proposed: proposedY, pressure: pressure, edges: topEdges)
+                : resistedMaximumPosition(anchor: anchorY, proposed: proposedY, pressure: pressure, edges: bottomEdges)
+            edgeStickinessState.verticalAnchor = result.anchor
+            edgeStickinessState.verticalPressure = result.pressure
+            return result.position
         }
 
-        if shouldStickToMinimumEdge(current: currentY, proposed: proposedY, edge: topY, offset: offsetY) {
+        if let topY = crossedMinimumEdge(current: currentY, proposed: proposedY, offset: offsetY, edges: topEdges) {
             let pressure = max(topY - proposedY, 0)
-            if pressure > Self.edgeStickReleaseDistance {
-                return topY - (pressure - Self.edgeStickReleaseDistance)
-            }
+            let result = resistedMinimumPosition(anchor: topY, proposed: proposedY, pressure: pressure, edges: topEdges)
 
             edgeStickinessState.verticalEdge = .top
-            edgeStickinessState.verticalPressure = pressure
-            return topY
+            edgeStickinessState.verticalAnchor = result.anchor
+            edgeStickinessState.verticalPressure = result.pressure
+            return result.position
         }
 
-        if shouldStickToMaximumEdge(current: currentY, proposed: proposedY, edge: bottomY, offset: offsetY) {
+        if let bottomY = crossedMaximumEdge(current: currentY, proposed: proposedY, offset: offsetY, edges: bottomEdges) {
             let pressure = max(proposedY - bottomY, 0)
-            if pressure > Self.edgeStickReleaseDistance {
-                return bottomY + (pressure - Self.edgeStickReleaseDistance)
-            }
+            let result = resistedMaximumPosition(anchor: bottomY, proposed: proposedY, pressure: pressure, edges: bottomEdges)
 
             edgeStickinessState.verticalEdge = .bottom
-            edgeStickinessState.verticalPressure = pressure
-            return bottomY
+            edgeStickinessState.verticalAnchor = result.anchor
+            edgeStickinessState.verticalPressure = result.pressure
+            return result.position
         }
 
         return proposedY
     }
 
-    private func shouldStickToMinimumEdge(current: CGFloat, proposed: CGFloat, edge: CGFloat, offset: CGFloat) -> Bool {
+    private func crossedMinimumEdge(current: CGFloat, proposed: CGFloat, offset: CGFloat, edges: [CGFloat]) -> CGFloat? {
         guard offset < 0 else {
-            return false
+            return nil
         }
 
-        let currentDistance = current - edge
-        let proposedDistance = proposed - edge
-        return currentDistance >= 0 && proposedDistance <= 0
+        return edges
+            .filter { current >= $0 && proposed <= $0 }
+            .max()
     }
 
-    private func shouldStickToMaximumEdge(current: CGFloat, proposed: CGFloat, edge: CGFloat, offset: CGFloat) -> Bool {
+    private func crossedMaximumEdge(current: CGFloat, proposed: CGFloat, offset: CGFloat, edges: [CGFloat]) -> CGFloat? {
         guard offset > 0 else {
-            return false
+            return nil
         }
 
-        let currentDistance = edge - current
-        let proposedDistance = edge - proposed
-        return currentDistance >= 0 && proposedDistance <= 0
+        return edges
+            .filter { current <= $0 && proposed >= $0 }
+            .min()
     }
 
-    private func visibleScreenFrame(for windowFrame: CGRect) -> CGRect? {
-        let screenFrames = screenVisibleFramesInAccessibilityCoordinates()
+    private func resistedMinimumPosition(
+        anchor: CGFloat,
+        proposed: CGFloat,
+        pressure: CGFloat,
+        edges: [CGFloat]
+    ) -> EdgeResistanceResult {
+        let position = anchor - resistedEdgeDistance(for: pressure)
+        guard let nextAnchor = edges
+            .filter({ $0 < anchor && position <= $0 })
+            .max() else {
+            return EdgeResistanceResult(position: position, anchor: anchor, pressure: pressure)
+        }
+
+        let nextPressure = max(nextAnchor - proposed, 0)
+        return EdgeResistanceResult(
+            position: nextAnchor - resistedEdgeDistance(for: nextPressure),
+            anchor: nextAnchor,
+            pressure: nextPressure
+        )
+    }
+
+    private func resistedMaximumPosition(
+        anchor: CGFloat,
+        proposed: CGFloat,
+        pressure: CGFloat,
+        edges: [CGFloat]
+    ) -> EdgeResistanceResult {
+        let position = anchor + resistedEdgeDistance(for: pressure)
+        guard let nextAnchor = edges
+            .filter({ $0 > anchor && position >= $0 })
+            .min() else {
+            return EdgeResistanceResult(position: position, anchor: anchor, pressure: pressure)
+        }
+
+        let nextPressure = max(proposed - nextAnchor, 0)
+        return EdgeResistanceResult(
+            position: nextAnchor + resistedEdgeDistance(for: nextPressure),
+            anchor: nextAnchor,
+            pressure: nextPressure
+        )
+    }
+
+    private func resistedEdgeDistance(for pressure: CGFloat) -> CGFloat {
+        guard pressure > Self.edgeStickHoldDistance else {
+            return 0
+        }
+
+        let freeDistance = pressure - Self.edgeStickHoldDistance
+        guard freeDistance < Self.edgeStickResistanceDistance else {
+            return freeDistance
+        }
+
+        let progress = freeDistance / Self.edgeStickResistanceDistance
+        let easedProgress = progress * progress * (3 - 2 * progress)
+        return freeDistance * easedProgress
+    }
+
+    private func edgePositions(_ positions: CGFloat...) -> [CGFloat] {
+        positions.reduce(into: []) { result, position in
+            guard !result.contains(where: { abs($0 - position) < 0.5 }) else {
+                return
+            }
+
+            result.append(position)
+        }
+    }
+
+    private func screenEdgeFrame(for windowFrame: CGRect) -> ScreenEdgeFrame? {
+        let screenFrames = screenEdgeFramesInAccessibilityCoordinates()
         guard !screenFrames.isEmpty else {
             return nil
         }
 
         let windowCenter = CGPoint(x: windowFrame.midX, y: windowFrame.midY)
-        if let containingFrame = screenFrames.first(where: { $0.contains(windowCenter) }) {
+        if let containingFrame = screenFrames.first(where: { $0.full.contains(windowCenter) }) {
             return containingFrame
         }
 
         return screenFrames.max { lhs, rhs in
-            intersectionArea(lhs, windowFrame) < intersectionArea(rhs, windowFrame)
+            intersectionArea(lhs.full, windowFrame) < intersectionArea(rhs.full, windowFrame)
         }
     }
 
-    private func screenVisibleFramesInAccessibilityCoordinates() -> [CGRect] {
+    private func screenEdgeFramesInAccessibilityCoordinates() -> [ScreenEdgeFrame] {
         guard let primaryScreenFrame = NSScreen.screens.first?.frame else {
             return []
         }
 
         let primaryScreenMaxY = primaryScreenFrame.maxY
         return NSScreen.screens.map { screen in
-            let frame = screen.visibleFrame
-            return CGRect(
-                x: frame.minX,
-                y: primaryScreenMaxY - frame.maxY,
-                width: frame.width,
-                height: frame.height
+            let visibleFrame = screen.visibleFrame
+            let fullFrame = screen.frame
+            let visible = CGRect(
+                x: visibleFrame.minX,
+                y: primaryScreenMaxY - visibleFrame.maxY,
+                width: visibleFrame.width,
+                height: visibleFrame.height
+            )
+            let full = CGRect(
+                x: fullFrame.minX,
+                y: primaryScreenMaxY - fullFrame.maxY,
+                width: fullFrame.width,
+                height: fullFrame.height
+            )
+
+            return ScreenEdgeFrame(
+                visible: visible,
+                full: full
             )
         }
     }
-
     private func intersectionArea(_ lhs: CGRect, _ rhs: CGRect) -> CGFloat {
         let intersection = lhs.intersection(rhs)
         guard !intersection.isNull else {
