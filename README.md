@@ -46,7 +46,48 @@ git tag v1.8.1
 git push origin v1.8.1
 ```
 
-Open the generated DMG and drag `YunDrag.app` into the `Applications` shortcut. The app inside the DMG is unsigned and not notarized. For public distribution, sign and notarize the app before shipping it to end users.
+Open the generated DMG and drag `YunDrag.app` into the `Applications` shortcut.
+
+By default, GitHub Actions builds an unsigned app. Unsigned builds can ask for Accessibility permission again after each update because macOS cannot match them to a stable code-signing identity. Without an Apple Developer ID, you can still make update identity stable by signing release builds with a self-signed local code-signing certificate:
+
+```sh
+cat > /tmp/yundrag-codesign.cnf <<'EOF'
+[ req ]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[ req_distinguished_name ]
+CN = YunDrag Local Code Signing
+
+[ v3_req ]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = codeSigning
+EOF
+
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout YunDragLocalSigning.key \
+  -x509 -days 3650 \
+  -out YunDragLocalSigning.crt \
+  -config /tmp/yundrag-codesign.cnf \
+  -sha256
+
+openssl pkcs12 -export \
+  -name "YunDrag Local Code Signing" \
+  -inkey YunDragLocalSigning.key \
+  -in YunDragLocalSigning.crt \
+  -out YunDragLocalSigning.p12
+
+base64 -i YunDragLocalSigning.p12 | pbcopy
+```
+
+Add these GitHub repository secrets:
+
+- `MACOS_CODESIGN_CERTIFICATE_BASE64`: the base64 text copied above.
+- `MACOS_CODESIGN_CERTIFICATE_PASSWORD`: the password used when exporting the `.p12`.
+
+The first build signed with this certificate still needs a fresh Accessibility grant. Later builds signed with the same certificate should keep the same TCC identity. This is not Apple notarization, so macOS may still show Gatekeeper warnings on first launch. For public distribution, use Developer ID signing and notarization.
 
 ## Usage
 

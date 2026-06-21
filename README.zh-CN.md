@@ -46,7 +46,48 @@ git tag v1.8.1
 git push origin v1.8.1
 ```
 
-打开生成的 DMG，把 `YunDrag.app` 拖到 `Applications` 快捷方式中即可安装。DMG 内的 app 未签名、未公证。面向公开分发前，建议先对 app 进行签名和公证。
+打开生成的 DMG，把 `YunDrag.app` 拖到 `Applications` 快捷方式中即可安装。
+
+默认情况下，GitHub Actions 会构建未签名 app。未签名构建每次更新后都可能重新要求辅助功能权限，因为 macOS 无法把它们匹配到稳定的代码签名身份。即使没有 Apple Developer ID，也可以用自签名的本地代码签名证书让 release 构建的身份稳定：
+
+```sh
+cat > /tmp/yundrag-codesign.cnf <<'EOF'
+[ req ]
+distinguished_name = req_distinguished_name
+x509_extensions = v3_req
+prompt = no
+
+[ req_distinguished_name ]
+CN = YunDrag Local Code Signing
+
+[ v3_req ]
+basicConstraints = critical,CA:false
+keyUsage = critical,digitalSignature
+extendedKeyUsage = codeSigning
+EOF
+
+openssl req -new -newkey rsa:2048 -nodes \
+  -keyout YunDragLocalSigning.key \
+  -x509 -days 3650 \
+  -out YunDragLocalSigning.crt \
+  -config /tmp/yundrag-codesign.cnf \
+  -sha256
+
+openssl pkcs12 -export \
+  -name "YunDrag Local Code Signing" \
+  -inkey YunDragLocalSigning.key \
+  -in YunDragLocalSigning.crt \
+  -out YunDragLocalSigning.p12
+
+base64 -i YunDragLocalSigning.p12 | pbcopy
+```
+
+在 GitHub 仓库中添加这些 Secrets：
+
+- `MACOS_CODESIGN_CERTIFICATE_BASE64`：上面复制出来的 base64 文本。
+- `MACOS_CODESIGN_CERTIFICATE_PASSWORD`：导出 `.p12` 时输入的密码。
+
+第一次切换到这张证书签名的构建时，仍然需要重新授予一次辅助功能权限。之后只要一直用同一张证书签名，后续版本应该会保持同一个 TCC 身份。这不是 Apple 公证，所以首次启动时 macOS 仍可能显示 Gatekeeper 提示。面向公开分发时，建议使用 Developer ID 签名和公证。
 
 ## 使用方法
 
