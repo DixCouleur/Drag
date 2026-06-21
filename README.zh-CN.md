@@ -42,8 +42,8 @@ rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release
 仓库已包含 GitHub Actions workflow，会在 push、pull request 和手动触发时构建 Release app。推送版本 tag 后，会创建或更新 GitHub Release，并上传 macOS DMG：
 
 ```sh
-git tag v1.8.1
-git push origin v1.8.1
+git tag v1.8.2
+git push origin v1.8.2
 ```
 
 打开生成的 DMG，把 `YunDrag.app` 拖到 `Applications` 快捷方式中即可安装。

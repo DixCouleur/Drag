@@ -42,8 +42,8 @@ rtk xcodebuild -project YunDrag.xcodeproj -scheme release -configuration Release
 The repository includes a GitHub Actions workflow that builds the Release app on push, pull request, and manual dispatch. Push a version tag to create or update a GitHub Release with a macOS DMG:
 
 ```sh
-git tag v1.8.1
-git push origin v1.8.1
+git tag v1.8.2
+git push origin v1.8.2
 ```
 
 Open the generated DMG and drag `YunDrag.app` into the `Applications` shortcut.
